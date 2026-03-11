@@ -285,3 +285,163 @@ button {
     padding: 1.25rem;
   }
 }
+
+/* ── Calendar View ── */
+.calendar-grid {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.calendar-header-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--border);
+}
+
+.calendar-day-header {
+  padding: 0.6rem 0.4rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.calendar-week-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--border);
+}
+.calendar-week-row:last-child {
+  border-bottom: none;
+}
+
+.calendar-day-cell {
+  position: relative;
+  min-height: 100px;
+  padding: 0.4rem;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text);
+  text-align: left;
+  vertical-align: top;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.82rem;
+  transition: background 0.15s ease;
+}
+.calendar-day-cell:last-child {
+  border-right: none;
+}
+.calendar-day-cell:hover {
+  background: rgba(59, 130, 246, 0.06);
+}
+.calendar-day-cell:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.calendar-day--other {
+  opacity: 0.35;
+}
+.calendar-day--today .calendar-day-number {
+  background: var(--primary);
+  color: #fff;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+.calendar-day--weekend {
+  background: rgba(255, 255, 255, 0.02);
+}
+.calendar-day--holiday {
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.calendar-day-number {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.calendar-holiday-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 0.2rem;
+}
+.calendar-holiday-label {
+  font-size: 0.7rem;
+  color: #f87171;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.calendar-todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  overflow: hidden;
+}
+.calendar-todo-label {
+  font-size: 0.72rem;
+  padding: 1px 4px;
+  border-left: 3px solid #6b7280;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.calendar-todo-more {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.calendar-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0 4px;
+}
+
+@media (max-width: 768px) {
+  .calendar-day-cell {
+    min-height: 60px;
+    padding: 0.25rem;
+  }
+  .calendar-holiday-label,
+  .calendar-todo-label {
+    font-size: 0.6rem;
+  }
+  .calendar-badge {
+    font-size: 0.55rem;
+    min-width: 14px;
+    height: 14px;
+  }
+}

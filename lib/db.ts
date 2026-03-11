@@ -815,3 +815,65 @@ export function deleteTemplate(id: string): boolean {
   const result = stmt.run(id)
   return result.changes > 0
 }
+
+// --- Holidays ---
+
+export interface Holiday {
+  id: string
+  date: string       // YYYY-MM-DD
+  name: string
+  observed: boolean
+}
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS holidays (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL,
+  name TEXT NOT NULL,
+  observed INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS holidays_date_idx ON holidays(date);
+`)
+
+export function getAllHolidays(): Holiday[] {
+  const stmt = db.prepare(`SELECT * FROM holidays ORDER BY date ASC`)
+  const rows = stmt.all() as Array<Record<string, unknown>>
+  return rows.map((row) => ({
+    id: String(row.id),
+    date: String(row.date),
+    name: String(row.name),
+    observed: Boolean(row.observed),
+  }))
+}
+
+export function getHolidaysByMonth(year: number, month: number): Holiday[] {
+  const prefix = `${year}-${String(month).padStart(2, '0')}`
+  const stmt = db.prepare(`SELECT * FROM holidays WHERE date LIKE ? ORDER BY date ASC`)
+  const rows = stmt.all(`${prefix}%`) as Array<Record<string, unknown>>
+  return rows.map((row) => ({
+    id: String(row.id),
+    date: String(row.date),
+    name: String(row.name),
+    observed: Boolean(row.observed),
+  }))
+}
+
+export function seedHolidays(holidays: Array<{ date: string; name: string; observed?: boolean }>): number {
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO holidays (id, date, name, observed) VALUES (@id, @date, @name, @observed)`
+  )
+  let count = 0
+  const insertMany = db.transaction((items: typeof holidays) => {
+    for (const h of items) {
+      const result = insert.run({
+        id: uuidv4(),
+        date: h.date,
+        name: h.name,
+        observed: (h.observed ?? true) ? 1 : 0,
+      })
+      if (result.changes > 0) count++
+    }
+  })
+  insertMany(holidays)
+  return count
+}

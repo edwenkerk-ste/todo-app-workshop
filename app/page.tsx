@@ -825,7 +825,16 @@ export default function Page() {
   return (
     <main className="container">
       <header style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem' }}>Todo App</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <h1 style={{ margin: 0, fontSize: '2rem' }}>Todo App</h1>
+          <a
+            href="/calendar"
+            className="button"
+            style={{ textDecoration: 'none', background: 'rgba(139,92,246,0.85)', borderColor: 'rgba(139,92,246,0.7)', fontSize: '0.9rem', padding: '0.5rem 1rem' }}
+          >
+            📅 Calendar
+          </a>
+        </div>
         <p style={{ margin: '0.25rem 0 0', color: 'var(--muted)' }}>
           Manage your todos (Singapore timezone). Create, edit, complete, and delete.
         </p>
