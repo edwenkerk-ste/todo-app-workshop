@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { v4 as uuidv4 } from 'uuid'
+import { normalizePriority } from './priority'
 
 export type Priority = 'high' | 'medium' | 'low'
 
@@ -35,13 +36,25 @@ CREATE INDEX IF NOT EXISTS todos_completed_idx ON todos(completed);
 `)
 
 export function getAllTodos(): Todo[] {
-  const stmt = db.prepare(`SELECT * FROM todos ORDER BY completed ASC, priority DESC, due_date ASC, created_at DESC`)
+  const stmt = db.prepare(`
+    SELECT * FROM todos
+    ORDER BY
+      completed ASC,
+      CASE priority
+        WHEN 'high' THEN 3
+        WHEN 'medium' THEN 2
+        WHEN 'low' THEN 1
+        ELSE 0
+      END DESC,
+      due_date ASC,
+      created_at ASC
+  `)
   const rows = stmt.all() as Array<Record<string, unknown>>
   return rows.map((row) => ({
     id: String(row.id),
     title: String(row.title),
     due_date: row.due_date === null ? null : String(row.due_date),
-    priority: (String(row.priority) as Priority) ?? 'medium',
+    priority: normalizePriority(row.priority),
     completed: Boolean(row.completed),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -56,7 +69,7 @@ export function getTodoById(id: string): Todo | null {
     id: String(row.id),
     title: String(row.title),
     due_date: row.due_date === null ? null : String(row.due_date),
-    priority: (String(row.priority) as Priority) ?? 'medium',
+    priority: normalizePriority(row.priority),
     completed: Boolean(row.completed),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -73,7 +86,7 @@ export function createTodo(data: {
     id: uuidv4(),
     title: data.title.trim(),
     due_date: data.due_date,
-    priority: data.priority ?? 'medium',
+    priority: normalizePriority(data.priority),
     completed: false,
     created_at: now,
     updated_at: now,
@@ -101,6 +114,7 @@ export function updateTodo(id: string, updates: Partial<Omit<Todo, 'id' | 'creat
   const updated: Todo = {
     ...existing,
     ...updates,
+    priority: normalizePriority(updates.priority ?? existing.priority),
     updated_at: now,
   }
   const stmt = db.prepare(
