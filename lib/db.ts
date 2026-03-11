@@ -48,7 +48,6 @@ CREATE TABLE IF NOT EXISTS todos (
 );
 CREATE INDEX IF NOT EXISTS todos_due_date_idx ON todos(due_date);
 CREATE INDEX IF NOT EXISTS todos_completed_idx ON todos(completed);
-CREATE INDEX IF NOT EXISTS todos_reminder_idx ON todos(completed, due_date, reminder_minutes);
 `)
 
 // Migration for existing databases that predate recurring fields.
@@ -74,6 +73,13 @@ try {
   db.exec(`ALTER TABLE todos ADD COLUMN last_notification_sent TEXT NULL;`)
 } catch {
   // Column already exists.
+}
+
+// Index for reminder polling (after columns exist)
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS todos_reminder_idx ON todos(completed, due_date, reminder_minutes);`)
+} catch {
+  // Index already exists or table shape issue
 }
 
 // Tags (many-to-many with todos)
