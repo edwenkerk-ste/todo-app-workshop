@@ -120,8 +120,8 @@ function CalendarContent() {
         fetch(`/api/holidays?year=${year}&month=${month + 1}`),
       ])
       if (todosRes.ok) {
-        const data = await todosRes.json()
-        setTodos(data)
+        const json = await todosRes.json()
+        setTodos(json.data ?? json)
       }
       if (holidaysRes.ok) {
         const data = await holidaysRes.json()
