@@ -15,8 +15,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: parseResult.error.flatten().formErrors.join('; ') }, { status: 400 })
   }
 
-  const { title, due_date, priority } = parseResult.data
+  const { title, due_date, priority, is_recurring, recurrence_pattern } = parseResult.data
   const dueDateIso = due_date ? parseSingaporeLocalIso(due_date).toISOString() : null
-  const todo = createTodo({ title, due_date: dueDateIso, priority })
+  const todo = createTodo({
+    title,
+    due_date: dueDateIso,
+    priority,
+    is_recurring: is_recurring ?? false,
+    recurrence_pattern: is_recurring ? (recurrence_pattern ?? null) : null,
+  })
   return NextResponse.json({ success: true, data: todo }, { status: 201 })
 }

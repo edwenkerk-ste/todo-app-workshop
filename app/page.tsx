@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { formatSingaporeDate, formatSingaporeForInput, getSingaporeNow, parseSingaporeLocalIso } from '@/lib/timezone'
-import type { Priority } from '@/lib/db'
+import { formatSingaporeDate, formatSingaporeForInput, getSingaporeNow } from '@/lib/timezone'
+import type { Priority, RecurrencePattern } from '@/lib/db'
 import { filterTodosByPriority, sortTodosByPriority } from '@/lib/priority'
 
 type Todo = {
@@ -10,6 +10,8 @@ type Todo = {
   title: string
   due_date: string | null
   priority: Priority
+  is_recurring: boolean
+  recurrence_pattern: RecurrencePattern | null
   completed: boolean
   created_at: string
   updated_at: string
@@ -42,6 +44,8 @@ export default function Page() {
   const [title, setTitle] = useState('')
   const [dueDate, setDueDate] = useState<string>('')
   const [priority, setPriority] = useState<Priority>('medium')
+  const [isRecurring, setIsRecurring] = useState(false)
+  const [recurrencePattern, setRecurrencePattern] = useState<RecurrencePattern>('daily')
   const [selectedPriority, setSelectedPriority] = useState<Priority | 'all'>('all')
   const [editing, setEditing] = useState<Todo | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Todo | null>(null)
@@ -83,6 +87,8 @@ export default function Page() {
     setTitle('')
     setDueDate('')
     setPriority('medium')
+    setIsRecurring(false)
+    setRecurrencePattern('daily')
   }
 
   const handleCreate = async () => {
@@ -91,8 +97,17 @@ export default function Page() {
       setError('Title is required')
       return
     }
+    if (isRecurring && !dueDate) {
+      setError('Recurring todos require a due date')
+      return
+    }
 
-    const payload: any = { title: trimmed, priority }
+    const payload: any = {
+      title: trimmed,
+      priority,
+      is_recurring: isRecurring,
+      recurrence_pattern: isRecurring ? recurrencePattern : null,
+    }
     if (dueDate) payload.due_date = dueDate
 
     const optimisticTodo: Todo = {
@@ -100,6 +115,8 @@ export default function Page() {
       title: trimmed,
       due_date: dueDate || null,
       priority,
+      is_recurring: isRecurring,
+      recurrence_pattern: isRecurring ? recurrencePattern : null,
       completed: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -140,7 +157,11 @@ export default function Page() {
       if (!res.ok || !body.success) {
         throw new Error(body?.error ?? 'Failed to update todo')
       }
-      setTodos((prev) => sortTodosByPriority(prev.map((t) => (t.id === todo.id ? body.data : t))))
+      if (body.created_recurring_todo) {
+        await fetchTodos()
+      } else {
+        setTodos((prev) => sortTodosByPriority(prev.map((t) => (t.id === todo.id ? body.data : t))))
+      }
     } catch (err) {
       setError((err as Error).message)
       setTodos((prev) => prev.map((t) => (t.id === todo.id ? todo : t)))
@@ -152,6 +173,8 @@ export default function Page() {
     setTitle(todo.title)
     setDueDate(todo.due_date ? formatSingaporeForInput(new Date(todo.due_date)) : '')
     setPriority(todo.priority)
+    setIsRecurring(todo.is_recurring)
+    setRecurrencePattern(todo.recurrence_pattern ?? 'daily')
   }
 
   const closeModal = () => {
@@ -168,12 +191,28 @@ export default function Page() {
       setError('Title is required')
       return
     }
+    if (isRecurring && !dueDate) {
+      setError('Recurring todos require a due date')
+      return
+    }
 
-    const payload: any = { title: trimmed, priority }
+    const payload: any = {
+      title: trimmed,
+      priority,
+      is_recurring: isRecurring,
+      recurrence_pattern: isRecurring ? recurrencePattern : null,
+    }
     if (dueDate) payload.due_date = dueDate
     else payload.due_date = null
 
-    const optimistic: Todo = { ...editing, title: trimmed, due_date: dueDate || null, priority }
+    const optimistic: Todo = {
+      ...editing,
+      title: trimmed,
+      due_date: dueDate || null,
+      priority,
+      is_recurring: isRecurring,
+      recurrence_pattern: isRecurring ? recurrencePattern : null,
+    }
     setTodos((prev) => sortTodosByPriority(prev.map((t) => (t.id === editing.id ? optimistic : t))))
 
     try {
@@ -226,6 +265,11 @@ export default function Page() {
           <p className="todo-item__title">{todo.title}</p>
           <div className="todo-item__meta">
             <span className={`badge ${priorityClasses[todo.priority]}`}>{priorityLabels[todo.priority]}</span>
+            {todo.is_recurring && todo.recurrence_pattern ? (
+              <span className="badge" style={{ marginLeft: 8 }}>
+                🔄 {todo.recurrence_pattern}
+              </span>
+            ) : null}
             {todo.due_date ? (
               <span style={{ marginLeft: 8 }}>
                 Due {formatSingaporeDate(new Date(todo.due_date))}
@@ -281,6 +325,26 @@ export default function Page() {
               <option value="low">Low</option>
             </select>
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <input
+              type="checkbox"
+              checked={isRecurring}
+              onChange={(e) => setIsRecurring(e.target.checked)}
+            />
+            Repeat
+          </label>
+          {isRecurring ? (
+            <select
+              className="select"
+              value={recurrencePattern}
+              onChange={(e) => setRecurrencePattern(e.target.value as RecurrencePattern)}
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          ) : null}
           <button className="button" onClick={handleCreate} disabled={loading}>
             {loading ? 'Saving…' : 'Create Todo'}
           </button>
@@ -379,6 +443,29 @@ export default function Page() {
                   <option value="low">Low</option>
                 </select>
               </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={isRecurring}
+                  onChange={(e) => setIsRecurring(e.target.checked)}
+                />
+                Repeat
+              </label>
+              {isRecurring ? (
+                <label>
+                  <div style={{ marginBottom: 4 }}>Recurrence pattern</div>
+                  <select
+                    className="select"
+                    value={recurrencePattern}
+                    onChange={(e) => setRecurrencePattern(e.target.value as RecurrencePattern)}
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </label>
+              ) : null}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                 <button className="button" onClick={handleSaveEdit}>
                   Save
