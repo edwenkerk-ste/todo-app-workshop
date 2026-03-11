@@ -1,1 +1,9 @@
 node_modules
+.next
+todos.db
+
+# Test results & reports
+test-results
+playwright-report
+playwright/.cache
+coverage
