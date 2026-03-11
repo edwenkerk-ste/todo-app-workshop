@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import fs from 'fs'
 
 const TODO_TITLE = 'E2E Export Import Test Todo'
 
-async function clearAllTodos(page: Parameters<typeof test>[0]['page']) {
+async function clearAllTodos(page: Page) {
   const res = await page.request.get('/api/todos')
   const body = await res.json()
   if (body?.success && Array.isArray(body.data)) {
