@@ -6,11 +6,22 @@ import type { Priority, RecurrencePattern } from '@/lib/db'
 import { filterTodosByPriority, sortTodosByPriority } from '@/lib/priority'
 import { formatReminderLabel, REMINDER_MINUTES_OPTIONS } from '@/lib/reminders'
 import { useNotifications } from '@/lib/hooks/useNotifications'
+import { calculateProgress } from '@/lib/progress'
 
 type Tag = {
   id: string
   name: string
   color: string
+}
+
+type Subtask = {
+  id: string
+  todo_id: string
+  title: string
+  completed: boolean
+  position: number
+  created_at: string
+  updated_at: string
 }
 
 type Todo = {
@@ -90,6 +101,11 @@ export default function Page() {
   const [editingTagName, setEditingTagName] = useState('')
   const [editingTagColor, setEditingTagColor] = useState('')
   const [tagError, setTagError] = useState<string | null>(null)
+
+  // Subtask state
+  const [subtasksMap, setSubtasksMap] = useState<Record<string, Subtask[]>>({})
+  const [expandedTodoId, setExpandedTodoId] = useState<string | null>(null)
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
 
   const fetchTodos = async () => {
     setLoading(true)
@@ -339,6 +355,11 @@ export default function Page() {
     setConfirmDelete(null)
     const prevTodos = todos
     setTodos((prev) => prev.filter((t) => t.id !== todo.id))
+    setSubtasksMap((prev) => {
+      const next = { ...prev }
+      delete next[todo.id]
+      return next
+    })
 
     try {
       const res = await fetch(`/api/todos/${todo.id}`, { method: 'DELETE' })
@@ -404,66 +425,234 @@ export default function Page() {
     fileInputRef.current?.click()
   }
 
+  // --- Subtask handlers ---
+
+  const fetchSubtasks = async (todoId: string) => {
+    try {
+      const res = await fetch(`/api/todos/${todoId}/subtasks`)
+      const body = await res.json()
+      if (res.ok && body.success) {
+        setSubtasksMap((prev) => ({ ...prev, [todoId]: body.data }))
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const toggleExpandSubtasks = async (todoId: string) => {
+    if (expandedTodoId === todoId) {
+      setExpandedTodoId(null)
+      setNewSubtaskTitle('')
+      return
+    }
+    setExpandedTodoId(todoId)
+    setNewSubtaskTitle('')
+    if (!subtasksMap[todoId]) {
+      await fetchSubtasks(todoId)
+    }
+  }
+
+  const handleAddSubtask = async (todoId: string) => {
+    const trimmed = newSubtaskTitle.trim()
+    if (!trimmed) return
+    setNewSubtaskTitle('')
+    try {
+      const res = await fetch(`/api/todos/${todoId}/subtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: trimmed }),
+      })
+      const body = await res.json()
+      if (res.ok && body.success) {
+        setSubtasksMap((prev) => ({
+          ...prev,
+          [todoId]: [...(prev[todoId] ?? []), body.data],
+        }))
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleToggleSubtask = async (subtask: Subtask) => {
+    const updated = { ...subtask, completed: !subtask.completed }
+    setSubtasksMap((prev) => ({
+      ...prev,
+      [subtask.todo_id]: (prev[subtask.todo_id] ?? []).map((s) =>
+        s.id === subtask.id ? updated : s
+      ),
+    }))
+    try {
+      const res = await fetch(`/api/subtasks/${subtask.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: updated.completed }),
+      })
+      const body = await res.json()
+      if (!res.ok || !body.success) {
+        setSubtasksMap((prev) => ({
+          ...prev,
+          [subtask.todo_id]: (prev[subtask.todo_id] ?? []).map((s) =>
+            s.id === subtask.id ? subtask : s
+          ),
+        }))
+      }
+    } catch {
+      setSubtasksMap((prev) => ({
+        ...prev,
+        [subtask.todo_id]: (prev[subtask.todo_id] ?? []).map((s) =>
+          s.id === subtask.id ? subtask : s
+        ),
+      }))
+    }
+  }
+
+  const handleDeleteSubtask = async (subtask: Subtask) => {
+    setSubtasksMap((prev) => ({
+      ...prev,
+      [subtask.todo_id]: (prev[subtask.todo_id] ?? []).filter((s) => s.id !== subtask.id),
+    }))
+    try {
+      await fetch(`/api/subtasks/${subtask.id}`, { method: 'DELETE' })
+    } catch {
+      // refetch on error
+      await fetchSubtasks(subtask.todo_id)
+    }
+  }
+
   const renderTodo = (todo: Todo) => {
     const overdue = isOverdue(todo)
     const todoTags = todo.tags ?? []
+    const isExpanded = expandedTodoId === todo.id
+    const subtasks = subtasksMap[todo.id] ?? []
+    const progress = calculateProgress(subtasks)
     return (
-      <div key={todo.id} className={`todo-item ${overdue ? 'todo-item--overdue' : ''}`}>
-        <label>
-          <input
-            type="checkbox"
-            checked={todo.completed}
-            onChange={() => handleToggleComplete(todo)}
-          />
-        </label>
-        <div>
-          <p className="todo-item__title">{todo.title}</p>
-          <div className="todo-item__meta">
-            <span className={`badge ${priorityClasses[todo.priority]}`}>{priorityLabels[todo.priority]}</span>
-            {todoTags.map((tag) => (
-              <button
-                key={tag.id}
-                type="button"
-                className="badge"
-                style={{
-                  marginLeft: 8,
-                  backgroundColor: tag.color,
-                  color: '#fff',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-                onClick={() => setSelectedTagId((prev) => (prev === tag.id ? null : tag.id))}
-                aria-label={`Filter by tag ${tag.name}`}
-              >
-                {tag.name}
-              </button>
-            ))}
-            {todo.is_recurring && todo.recurrence_pattern ? (
-              <span className="badge" style={{ marginLeft: 8 }}>
-                🔄 {todo.recurrence_pattern}
-              </span>
-            ) : null}
-            {todo.reminder_minutes !== null ? (
-              <span className="badge" style={{ marginLeft: 8 }}>
-                🔔 {formatReminderLabel(todo.reminder_minutes)}
-              </span>
-            ) : null}
-            {todo.due_date ? (
-              <span style={{ marginLeft: 8 }}>
-                Due {formatSingaporeDate(new Date(todo.due_date))}
-              </span>
-            ) : null}
-            {overdue ? <span style={{ marginLeft: 8, color: '#f87171' }}>Overdue</span> : null}
+      <div key={todo.id} className={`todo-item-wrapper ${overdue ? 'todo-item-wrapper--overdue' : ''}`}>
+        <div className="todo-item" style={{ borderRadius: isExpanded ? '12px 12px 0 0' : undefined, marginBottom: 0 }}>
+          <label>
+            <input
+              type="checkbox"
+              checked={todo.completed}
+              onChange={() => handleToggleComplete(todo)}
+            />
+          </label>
+          <div>
+            <p className="todo-item__title">{todo.title}</p>
+            <div className="todo-item__meta">
+              <span className={`badge ${priorityClasses[todo.priority]}`}>{priorityLabels[todo.priority]}</span>
+              {todoTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className="badge"
+                  style={{
+                    marginLeft: 8,
+                    backgroundColor: tag.color,
+                    color: '#fff',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setSelectedTagId((prev) => (prev === tag.id ? null : tag.id))}
+                  aria-label={`Filter by tag ${tag.name}`}
+                >
+                  {tag.name}
+                </button>
+              ))}
+              {todo.is_recurring && todo.recurrence_pattern ? (
+                <span className="badge" style={{ marginLeft: 8 }}>
+                  🔄 {todo.recurrence_pattern}
+                </span>
+              ) : null}
+              {todo.reminder_minutes !== null ? (
+                <span className="badge" style={{ marginLeft: 8 }}>
+                  🔔 {formatReminderLabel(todo.reminder_minutes)}
+                </span>
+              ) : null}
+              {todo.due_date ? (
+                <span style={{ marginLeft: 8 }}>
+                  Due {formatSingaporeDate(new Date(todo.due_date))}
+                </span>
+              ) : null}
+              {overdue ? <span style={{ marginLeft: 8, color: '#f87171' }}>Overdue</span> : null}
+            </div>
+          </div>
+          <div className="todo-actions">
+            <button
+              className="small-btn"
+              onClick={() => toggleExpandSubtasks(todo.id)}
+              aria-label={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
+            >
+              {isExpanded ? '▼' : '▶'} Subtasks
+            </button>
+            <button className="small-btn" onClick={() => openEdit(todo)}>
+              Edit
+            </button>
+            <button className="small-btn" onClick={() => setConfirmDelete(todo)}>
+              Delete
+            </button>
           </div>
         </div>
-        <div className="todo-actions">
-          <button className="small-btn" onClick={() => openEdit(todo)}>
-            Edit
-          </button>
-          <button className="small-btn" onClick={() => setConfirmDelete(todo)}>
-            Delete
-          </button>
-        </div>
+        {isExpanded && (
+          <div className="subtask-section">
+            {subtasks.length > 0 && (
+              <>
+                <div className="progress-bar-track">
+                  <div
+                    className={`progress-bar-fill ${progress.percent === 100 ? 'progress-bar-fill--complete' : ''}`}
+                    style={{ width: `${progress.percent}%` }}
+                  />
+                </div>
+                <p className="progress-label">{progress.label}</p>
+              </>
+            )}
+            <ul className="subtask-list">
+              {subtasks.map((subtask) => (
+                <li key={subtask.id} className="subtask-item">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={subtask.completed}
+                      onChange={() => handleToggleSubtask(subtask)}
+                    />
+                    <span style={{ textDecoration: subtask.completed ? 'line-through' : 'none', color: subtask.completed ? 'var(--muted)' : 'var(--text)' }}>
+                      {subtask.title}
+                    </span>
+                  </label>
+                  <button
+                    className="small-btn"
+                    style={{ color: '#f87171', flexShrink: 0 }}
+                    onClick={() => handleDeleteSubtask(subtask)}
+                    aria-label={`Delete subtask ${subtask.title}`}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <input
+                className="input"
+                placeholder="Add a subtask…"
+                value={newSubtaskTitle}
+                onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    void handleAddSubtask(todo.id)
+                  }
+                }}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="small-btn"
+                onClick={() => handleAddSubtask(todo.id)}
+                disabled={!newSubtaskTitle.trim()}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

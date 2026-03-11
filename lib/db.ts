@@ -42,6 +42,7 @@ export interface Subtask {
 
 const db = new Database('todos.db')
 
+// Enable foreign key enforcement for CASCADE delete
 db.pragma('foreign_keys = ON')
 
 // Ensure schema exists
@@ -143,6 +144,20 @@ CREATE TABLE IF NOT EXISTS todo_tags (
 );
 CREATE INDEX IF NOT EXISTS todo_tags_todo_id ON todo_tags(todo_id);
 CREATE INDEX IF NOT EXISTS todo_tags_tag_id ON todo_tags(tag_id);
+`)
+
+// Subtasks table
+db.exec(`
+CREATE TABLE IF NOT EXISTS subtasks (
+  id TEXT PRIMARY KEY,
+  todo_id TEXT NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  completed INTEGER NOT NULL DEFAULT 0,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS subtasks_todo_id ON subtasks(todo_id);
 `)
 
 export function getAllTodos(): Todo[] {
@@ -427,18 +442,31 @@ export function getAllTodoTags(): TodoTag[] {
   }))
 }
 
-export function getSubtasksByTodoId(todoId: string): Subtask[] {
-  const stmt = db.prepare(`SELECT * FROM subtasks WHERE todo_id = ? ORDER BY position ASC`)
-  const rows = stmt.all(todoId) as Array<Record<string, unknown>>
-  return rows.map((row) => ({
+// --- Subtasks ---
+
+function mapSubtaskRow(row: Record<string, unknown>): Subtask {
+  return {
     id: String(row.id),
     todo_id: String(row.todo_id),
     title: String(row.title),
     completed: Boolean(row.completed),
-    position: Number(row.position),
+    position: Number(row.position ?? 0),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
-  }))
+  }
+}
+
+export function getSubtasksByTodoId(todoId: string): Subtask[] {
+  const stmt = db.prepare(`SELECT * FROM subtasks WHERE todo_id = ? ORDER BY position ASC, created_at ASC`)
+  const rows = stmt.all(todoId) as Array<Record<string, unknown>>
+  return rows.map(mapSubtaskRow)
+}
+
+export function getSubtaskById(id: string): Subtask | null {
+  const stmt = db.prepare(`SELECT * FROM subtasks WHERE id = ?`)
+  const row = stmt.get(id) as Record<string, unknown> | undefined
+  if (!row) return null
+  return mapSubtaskRow(row)
 }
 
 export function createSubtask(data: {
@@ -450,14 +478,21 @@ export function createSubtask(data: {
   updated_at?: string
 }): Subtask {
   const now = new Date().toISOString()
+  const position =
+    data.position ??
+    (Number(
+      (db.prepare(`SELECT COALESCE(MAX(position), -1) AS mp FROM subtasks WHERE todo_id = ?`).get(data.todo_id) as Record<string, unknown>)?.mp ?? -1
+    ) + 1)
+  const created_at = data.created_at ?? now
+  const updated_at = data.updated_at ?? now
   const subtask: Subtask = {
     id: uuidv4(),
     todo_id: data.todo_id,
     title: data.title.trim(),
     completed: Boolean(data.completed),
-    position: data.position ?? 0,
-    created_at: data.created_at ?? now,
-    updated_at: data.updated_at ?? now,
+    position,
+    created_at,
+    updated_at,
   }
   const stmt = db.prepare(
     `INSERT INTO subtasks (id, todo_id, title, completed, position, created_at, updated_at)
@@ -478,15 +513,31 @@ export function createSubtask(data: {
 export function getAllSubtasks(): Subtask[] {
   const stmt = db.prepare(`SELECT * FROM subtasks ORDER BY todo_id ASC, position ASC`)
   const rows = stmt.all() as Array<Record<string, unknown>>
-  return rows.map((row) => ({
-    id: String(row.id),
-    todo_id: String(row.todo_id),
-    title: String(row.title),
-    completed: Boolean(row.completed),
-    position: Number(row.position),
-    created_at: String(row.created_at),
-    updated_at: String(row.updated_at),
-  }))
+  return rows.map(mapSubtaskRow)
+}
+
+export function updateSubtask(id: string, updates: { title?: string; completed?: boolean; position?: number }): Subtask | null {
+  const existing = getSubtaskById(id)
+  if (!existing) return null
+  const now = new Date().toISOString()
+  const updated: Subtask = {
+    ...existing,
+    title: updates.title !== undefined ? updates.title.trim() : existing.title,
+    completed: updates.completed !== undefined ? updates.completed : existing.completed,
+    position: updates.position !== undefined ? updates.position : existing.position,
+    updated_at: now,
+  }
+  const stmt = db.prepare(
+    `UPDATE subtasks SET title = @title, completed = @completed, position = @position, updated_at = @updated_at WHERE id = @id`
+  )
+  stmt.run({ id, title: updated.title, completed: updated.completed ? 1 : 0, position: updated.position, updated_at: now })
+  return updated
+}
+
+export function deleteSubtask(id: string): boolean {
+  const stmt = db.prepare(`DELETE FROM subtasks WHERE id = ?`)
+  const result = stmt.run(id)
+  return result.changes > 0
 }
 
 export function exportAllData() {
