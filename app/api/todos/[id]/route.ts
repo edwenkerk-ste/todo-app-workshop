@@ -33,7 +33,7 @@ export async function PUT(
     return NextResponse.json({ success: false, error: parseResult.error.flatten().formErrors.join('; ') }, { status: 400 })
   }
 
-  const payload = { ...parseResult.data }
+  const payload: Parameters<typeof updateTodo>[1] = { ...parseResult.data }
   if (payload.due_date) {
     payload.due_date = parseSingaporeLocalIso(payload.due_date).toISOString()
   }
