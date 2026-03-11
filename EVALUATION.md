@@ -18,24 +18,24 @@ This document provides a comprehensive checklist for evaluating the completeness
 ## Core Features Evaluation
 
 ### ✅ Feature 01: Todo CRUD Operations
-**Status:** ⬜ Not Started | ⬜ In Progress | ⬜ Complete | ⬜ Verified
+**Status:** ⬜ Not Started | ✅ In Progress | ⬜ Complete | ⬜ Verified
 
 **Implementation Checklist:**
-- [ ] Database schema created with all required fields
-- [ ] API endpoint: `POST /api/todos` (create)
-- [ ] API endpoint: `GET /api/todos` (read all)
-- [ ] API endpoint: `GET /api/todos/[id]` (read one)
-- [ ] API endpoint: `PUT /api/todos/[id]` (update)
-- [ ] API endpoint: `DELETE /api/todos/[id]` (delete)
-- [ ] Singapore timezone validation for due dates
-- [ ] Todo title validation (non-empty, trimmed)
-- [ ] Due date must be in future (minimum 1 minute)
-- [ ] UI form for creating todos
-- [ ] UI display in sections (Overdue, Active, Completed)
-- [ ] Toggle completion checkbox
-- [ ] Edit todo modal/form
-- [ ] Delete confirmation dialog
-- [ ] Optimistic UI updates
+- [x] Database schema created with all required fields
+- [x] API endpoint: `POST /api/todos` (create)
+- [x] API endpoint: `GET /api/todos` (read all)
+- [x] API endpoint: `GET /api/todos/[id]` (read one)
+- [x] API endpoint: `PUT /api/todos/[id]` (update)
+- [x] API endpoint: `DELETE /api/todos/[id]` (delete)
+- [x] Singapore timezone validation for due dates
+- [x] Todo title validation (non-empty, trimmed)
+- [x] Due date must be in future (minimum 1 minute)
+- [x] UI form for creating todos
+- [x] UI display in sections (Overdue, Active, Completed)
+- [x] Toggle completion checkbox
+- [x] Edit todo modal/form
+- [x] Delete confirmation dialog
+- [x] Optimistic UI updates
 
 **Testing:**
 - [ ] E2E test: Create todo with title only

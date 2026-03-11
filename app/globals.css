@@ -1,0 +1,220 @@
+/* Simple global styling for the todo app */
+:root {
+  --bg: #0b0f1d;
+  --surface: #121a2b;
+  --surface-2: #1b253b;
+  --text: #f8fafc;
+  --muted: #98a2b3;
+  --danger: #f44336;
+  --success: #22c55e;
+  --primary: #3b82f6;
+  --border: rgba(255, 255, 255, 0.08);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: radial-gradient(circle at top, #0b0f1d 0%, #05080f 70%);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+.container {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  outline: none;
+  font-size: 0.95rem;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: rgba(59, 130, 246, 0.6);
+}
+
+.button {
+  background: rgba(59, 130, 246, 0.9);
+  border: 1px solid rgba(59, 130, 246, 0.8);
+  border-radius: 12px;
+  color: var(--text);
+  padding: 0.7rem 1rem;
+  font-weight: 600;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+  background: rgba(59, 130, 246, 1);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.badge--high {
+  background: rgba(248, 113, 113, 0.16);
+  color: #fecaca;
+}
+
+.badge--medium {
+  background: rgba(250, 204, 21, 0.17);
+  color: #fef3c7;
+}
+
+.badge--low {
+  background: rgba(96, 165, 250, 0.16);
+  color: #dbeafe;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  z-index: 50;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: var(--shadow);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.close-button {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.list-section {
+  margin-top: 1.5rem;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.todo-item {
+  display: grid;
+  grid-template-columns: min-content 1fr min-content;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 0.5rem;
+  align-items: center;
+}
+
+.todo-item--overdue {
+  border-color: rgba(240, 73, 73, 0.35);
+}
+
+.todo-item__title {
+  font-weight: 600;
+  margin: 0;
+}
+
+.todo-item__meta {
+  margin-top: 0.3rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.todo-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.small-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.small-btn:hover {
+  border-color: rgba(59, 130, 246, 0.6);
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 1.25rem;
+  }
+}
