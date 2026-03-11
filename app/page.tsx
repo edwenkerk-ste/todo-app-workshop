@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { formatSingaporeDate, formatSingaporeForInput, getSingaporeNow } from '@/lib/timezone'
 import type { Priority, RecurrencePattern } from '@/lib/db'
 import { filterTodosByPriority, sortTodosByPriority } from '@/lib/priority'
+import { formatReminderLabel, REMINDER_MINUTES_OPTIONS } from '@/lib/reminders'
+import { useNotifications } from '@/lib/hooks/useNotifications'
 
 type Todo = {
   id: string
@@ -12,6 +14,8 @@ type Todo = {
   priority: Priority
   is_recurring: boolean
   recurrence_pattern: RecurrencePattern | null
+  reminder_minutes: number | null
+  last_notification_sent: string | null
   completed: boolean
   created_at: string
   updated_at: string
@@ -46,9 +50,11 @@ export default function Page() {
   const [priority, setPriority] = useState<Priority>('medium')
   const [isRecurring, setIsRecurring] = useState(false)
   const [recurrencePattern, setRecurrencePattern] = useState<RecurrencePattern>('daily')
+  const [reminderMinutes, setReminderMinutes] = useState<number | null>(null)
   const [selectedPriority, setSelectedPriority] = useState<Priority | 'all'>('all')
   const [editing, setEditing] = useState<Todo | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Todo | null>(null)
+  const { isSupported, permission, enableNotifications } = useNotifications()
 
   const fetchTodos = async () => {
     setLoading(true)
@@ -89,6 +95,7 @@ export default function Page() {
     setPriority('medium')
     setIsRecurring(false)
     setRecurrencePattern('daily')
+    setReminderMinutes(null)
   }
 
   const handleCreate = async () => {
@@ -107,6 +114,7 @@ export default function Page() {
       priority,
       is_recurring: isRecurring,
       recurrence_pattern: isRecurring ? recurrencePattern : null,
+      reminder_minutes: dueDate ? reminderMinutes : null,
     }
     if (dueDate) payload.due_date = dueDate
 
@@ -117,6 +125,8 @@ export default function Page() {
       priority,
       is_recurring: isRecurring,
       recurrence_pattern: isRecurring ? recurrencePattern : null,
+      reminder_minutes: dueDate ? reminderMinutes : null,
+      last_notification_sent: null,
       completed: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -175,6 +185,7 @@ export default function Page() {
     setPriority(todo.priority)
     setIsRecurring(todo.is_recurring)
     setRecurrencePattern(todo.recurrence_pattern ?? 'daily')
+    setReminderMinutes(todo.reminder_minutes ?? null)
   }
 
   const closeModal = () => {
@@ -201,6 +212,7 @@ export default function Page() {
       priority,
       is_recurring: isRecurring,
       recurrence_pattern: isRecurring ? recurrencePattern : null,
+      reminder_minutes: dueDate ? reminderMinutes : null,
     }
     if (dueDate) payload.due_date = dueDate
     else payload.due_date = null
@@ -212,6 +224,8 @@ export default function Page() {
       priority,
       is_recurring: isRecurring,
       recurrence_pattern: isRecurring ? recurrencePattern : null,
+      reminder_minutes: dueDate ? reminderMinutes : null,
+      last_notification_sent: null,
     }
     setTodos((prev) => sortTodosByPriority(prev.map((t) => (t.id === editing.id ? optimistic : t))))
 
@@ -270,6 +284,11 @@ export default function Page() {
                 🔄 {todo.recurrence_pattern}
               </span>
             ) : null}
+            {todo.reminder_minutes !== null ? (
+              <span className="badge" style={{ marginLeft: 8 }}>
+                🔔 {formatReminderLabel(todo.reminder_minutes)}
+              </span>
+            ) : null}
             {todo.due_date ? (
               <span style={{ marginLeft: 8 }}>
                 Due {formatSingaporeDate(new Date(todo.due_date))}
@@ -297,6 +316,21 @@ export default function Page() {
         <p style={{ margin: '0.25rem 0 0', color: 'var(--muted)' }}>
           Manage your todos (Singapore timezone). Create, edit, complete, and delete.
         </p>
+        <div style={{ marginTop: '0.75rem' }}>
+          <button
+            className="small-btn"
+            onClick={() => {
+              void enableNotifications()
+            }}
+            disabled={!isSupported || permission === 'granted'}
+          >
+            {!isSupported
+              ? 'Notifications Not Supported'
+              : permission === 'granted'
+                ? 'Notifications Enabled'
+                : 'Enable Notifications'}
+          </button>
+        </div>
       </header>
 
       <section className="card">
@@ -345,6 +379,20 @@ export default function Page() {
               <option value="yearly">Yearly</option>
             </select>
           ) : null}
+          <select
+            className="select"
+            value={reminderMinutes === null ? '' : String(reminderMinutes)}
+            onChange={(e) => setReminderMinutes(e.target.value ? Number(e.target.value) : null)}
+            disabled={!dueDate}
+            aria-label="Reminder"
+          >
+            <option value="">No reminder</option>
+            {REMINDER_MINUTES_OPTIONS.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {formatReminderLabel(minutes)}
+              </option>
+            ))}
+          </select>
           <button className="button" onClick={handleCreate} disabled={loading}>
             {loading ? 'Saving…' : 'Create Todo'}
           </button>
@@ -466,6 +514,22 @@ export default function Page() {
                   </select>
                 </label>
               ) : null}
+              <label>
+                <div style={{ marginBottom: 4 }}>Reminder</div>
+                <select
+                  className="select"
+                  value={reminderMinutes === null ? '' : String(reminderMinutes)}
+                  onChange={(e) => setReminderMinutes(e.target.value ? Number(e.target.value) : null)}
+                  disabled={!dueDate}
+                >
+                  <option value="">No reminder</option>
+                  {REMINDER_MINUTES_OPTIONS.map((minutes) => (
+                    <option key={minutes} value={minutes}>
+                      {formatReminderLabel(minutes)}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                 <button className="button" onClick={handleSaveEdit}>
                   Save

@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: parseResult.error.flatten().formErrors.join('; ') }, { status: 400 })
   }
 
-  const { title, due_date, priority, is_recurring, recurrence_pattern } = parseResult.data
+  const { title, due_date, priority, is_recurring, recurrence_pattern, reminder_minutes } = parseResult.data
   const dueDateIso = due_date ? parseSingaporeLocalIso(due_date).toISOString() : null
   const todo = createTodo({
     title,
@@ -23,6 +23,8 @@ export async function POST(request: Request) {
     priority,
     is_recurring: is_recurring ?? false,
     recurrence_pattern: is_recurring ? (recurrence_pattern ?? null) : null,
+    reminder_minutes: dueDateIso ? (reminder_minutes ?? null) : null,
+    last_notification_sent: null,
   })
   return NextResponse.json({ success: true, data: todo }, { status: 201 })
 }

@@ -1,8 +1,11 @@
 import { z } from 'zod'
 import { isFutureSingaporeIso } from './timezone'
+import { REMINDER_MINUTES_OPTIONS } from './reminders'
 
 export const prioritySchema = z.enum(['high', 'medium', 'low'])
 export const recurrencePatternSchema = z.enum(['daily', 'weekly', 'monthly', 'yearly'])
+export const reminderMinutesSchema = z.enum(REMINDER_MINUTES_OPTIONS.map((v) => String(v)) as [string, ...string[]])
+  .transform((v) => Number(v))
 
 export const createTodoSchema = z.object({
   title: z.string().trim().min(1, { message: 'Title is required' }),
@@ -15,6 +18,7 @@ export const createTodoSchema = z.object({
   priority: prioritySchema.optional(),
   is_recurring: z.boolean().optional(),
   recurrence_pattern: recurrencePatternSchema.nullable().optional(),
+  reminder_minutes: z.union([reminderMinutesSchema, z.null()]).optional(),
 }).superRefine((data, ctx) => {
   if (data.is_recurring) {
     if (!data.due_date) {
@@ -31,6 +35,14 @@ export const createTodoSchema = z.object({
         message: 'Recurring todos require a recurrence pattern',
       })
     }
+  }
+
+  if (data.reminder_minutes !== undefined && data.reminder_minutes !== null && !data.due_date) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['reminder_minutes'],
+      message: 'Reminder requires a due date',
+    })
   }
 })
 
@@ -50,6 +62,7 @@ export const updateTodoSchema = z.object({
   completed: z.boolean().optional(),
   is_recurring: z.boolean().optional(),
   recurrence_pattern: recurrencePatternSchema.nullable().optional(),
+  reminder_minutes: z.union([reminderMinutesSchema, z.null()]).optional(),
 }).superRefine((data, ctx) => {
   if (data.is_recurring) {
     if (!data.recurrence_pattern) {
@@ -64,6 +77,17 @@ export const updateTodoSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ['due_date'],
         message: 'Recurring todos require a due date',
+      })
+    }
+  }
+
+  if (data.reminder_minutes !== undefined && data.reminder_minutes !== null) {
+    const dueCleared = data.due_date === null || data.due_date === ''
+    if (dueCleared) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reminder_minutes'],
+        message: 'Reminder requires a due date',
       })
     }
   }
