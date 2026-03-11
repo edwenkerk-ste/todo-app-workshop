@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { formatSingaporeDate, formatSingaporeForInput, getSingaporeNow } from '@/lib/timezone'
 import type { Priority, RecurrencePattern } from '@/lib/db'
 import { filterTodosByPriority, sortTodosByPriority } from '@/lib/priority'
@@ -41,6 +41,8 @@ export default function Page() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [title, setTitle] = useState('')
   const [dueDate, setDueDate] = useState<string>('')
   const [priority, setPriority] = useState<Priority>('medium')
@@ -250,6 +252,58 @@ export default function Page() {
     }
   }
 
+  const handleExport = async () => {
+    setError(null)
+    setInfo(null)
+    try {
+      const res = await fetch('/api/todos/export')
+      const body = await res.json()
+      if (!res.ok || !body.success) {
+        throw new Error(body?.error ?? 'Failed to export todos')
+      }
+      const blob = new Blob([JSON.stringify(body.data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `todos-export-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setInfo(`Exported ${body.data.todos?.length ?? 0} todos`)
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  const handleImportFile = async (file: File) => {
+    setError(null)
+    setInfo(null)
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const res = await fetch('/api/todos/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed),
+      })
+      const body = await res.json()
+      if (!res.ok || !body.success) {
+        throw new Error(body?.error ?? 'Failed to import file')
+      }
+      setInfo(`Imported ${body.data.imported?.todos ?? 0} todos`) // may include other counts
+      await fetchTodos()
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  const openImportDialog = () => {
+    setError(null)
+    setInfo(null)
+    fileInputRef.current?.click()
+  }
+
   const renderTodo = (todo: Todo) => {
     const overdue = isOverdue(todo)
     return (
@@ -299,11 +353,15 @@ export default function Page() {
         </p>
       </header>
 
+      {error || info ? (
+        <div style={{ marginBottom: '1rem' }}>
+          {error ? <div style={{ color: '#f87171' }}>{error}</div> : null}
+          {info ? <div style={{ color: '#16a34a' }}>{info}</div> : null}
+        </div>
+      ) : null}
+
       <section className="card">
         <h2 style={{ marginTop: 0 }}>Create Todo</h2>
-        {error ? (
-          <div style={{ color: '#f87171', marginBottom: '0.75rem' }}>{error}</div>
-        ) : null}
         <div style={{ display: 'grid', gap: '0.8rem' }}>
           <input
             className="input"
@@ -352,7 +410,33 @@ export default function Page() {
       </section>
 
       <section className="list-section" aria-label="Todo filters">
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '0.75rem',
+          }}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="button" onClick={handleExport} disabled={loading}>
+              Export
+            </button>
+            <button className="button" onClick={openImportDialog} disabled={loading}>
+              Import
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) handleImportFile(file)
+                e.target.value = ''
+              }}
+            />
+          </div>
           <select
             className="select"
             value={selectedPriority}

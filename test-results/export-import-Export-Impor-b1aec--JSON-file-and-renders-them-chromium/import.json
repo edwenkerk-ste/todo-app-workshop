@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "todos": [
+    {
+      "id": "import-test-1",
+      "title": "E2E Export Import Test Todo",
+      "due_date": null,
+      "priority": "medium",
+      "is_recurring": false,
+      "recurrence_pattern": null,
+      "completed": false,
+      "created_at": "2026-03-11T07:56:56.505Z",
+      "updated_at": "2026-03-11T07:56:56.505Z"
+    }
+  ],
+  "tags": [],
+  "subtasks": [],
+  "todo_tags": []
+}

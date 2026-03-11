@@ -12,7 +12,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
   const parseResult = createTodoSchema.safeParse(body)
   if (!parseResult.success) {
-    return NextResponse.json({ success: false, error: parseResult.error.flatten().formErrors.join('; ') }, { status: 400 })
+    const message = parseResult.error.issues.map((e) => e.message).filter(Boolean).join('; ')
+    return NextResponse.json({ success: false, error: message || 'Invalid todo payload' }, { status: 400 })
   }
 
   const { title, due_date, priority, is_recurring, recurrence_pattern } = parseResult.data

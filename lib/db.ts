@@ -17,7 +17,31 @@ export interface Todo {
   updated_at: string
 }
 
+export interface Tag {
+  id: string
+  name: string
+  created_at: string
+  updated_at: string
+}
+
+export interface TodoTag {
+  todo_id: string
+  tag_id: string
+}
+
+export interface Subtask {
+  id: string
+  todo_id: string
+  title: string
+  completed: boolean
+  position: number
+  created_at: string
+  updated_at: string
+}
+
 const db = new Database('todos.db')
+
+db.pragma('foreign_keys = ON')
 
 // Ensure schema exists
 // Due date is stored as ISO string UTC (e.g. 2026-03-11T10:00:00.000Z)
@@ -38,6 +62,32 @@ CREATE TABLE IF NOT EXISTS todos (
 );
 CREATE INDEX IF NOT EXISTS todos_due_date_idx ON todos(due_date);
 CREATE INDEX IF NOT EXISTS todos_completed_idx ON todos(completed);
+
+CREATE TABLE IF NOT EXISTS tags (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS todo_tags (
+  todo_id TEXT NOT NULL,
+  tag_id TEXT NOT NULL,
+  PRIMARY KEY (todo_id, tag_id),
+  FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE,
+  FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS subtasks (
+  id TEXT PRIMARY KEY,
+  todo_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  completed INTEGER NOT NULL DEFAULT 0,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE
+);
 `)
 
 // Migration for existing databases that predate recurring fields.
@@ -181,4 +231,232 @@ export function deleteTodo(id: string): boolean {
   const stmt = db.prepare(`DELETE FROM todos WHERE id = ?`)
   const result = stmt.run(id)
   return result.changes > 0
+}
+
+export function getAllTags(): Tag[] {
+  const stmt = db.prepare(`SELECT * FROM tags ORDER BY name ASC`)
+  const rows = stmt.all() as Array<Record<string, unknown>>
+  return rows.map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  }))
+}
+
+export function getTagById(id: string): Tag | null {
+  const stmt = db.prepare(`SELECT * FROM tags WHERE id = ?`)
+  const row = stmt.get(id) as Record<string, unknown> | undefined
+  if (!row) return null
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  }
+}
+
+export function getTagByName(name: string): Tag | null {
+  const stmt = db.prepare(`SELECT * FROM tags WHERE LOWER(name) = LOWER(?)`)
+  const row = stmt.get(name) as Record<string, unknown> | undefined
+  if (!row) return null
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  }
+}
+
+export function createTag(data: { name: string; created_at?: string; updated_at?: string }): Tag {
+  const now = new Date().toISOString()
+  const tag: Tag = {
+    id: uuidv4(),
+    name: data.name.trim(),
+    created_at: data.created_at ?? now,
+    updated_at: data.updated_at ?? now,
+  }
+  const stmt = db.prepare(
+    `INSERT INTO tags (id, name, created_at, updated_at) VALUES (@id, @name, @created_at, @updated_at)`
+  )
+  stmt.run({
+    id: tag.id,
+    name: tag.name,
+    created_at: tag.created_at,
+    updated_at: tag.updated_at,
+  })
+  return tag
+}
+
+export function getAllTodoTags(): TodoTag[] {
+  const stmt = db.prepare(`SELECT * FROM todo_tags`)
+  const rows = stmt.all() as Array<Record<string, unknown>>
+  return rows.map((row) => ({
+    todo_id: String(row.todo_id),
+    tag_id: String(row.tag_id),
+  }))
+}
+
+export function addTagToTodo(todoId: string, tagId: string): void {
+  const stmt = db.prepare(`INSERT OR IGNORE INTO todo_tags (todo_id, tag_id) VALUES (?, ?)`)
+  stmt.run(todoId, tagId)
+}
+
+export function getSubtasksByTodoId(todoId: string): Subtask[] {
+  const stmt = db.prepare(`SELECT * FROM subtasks WHERE todo_id = ? ORDER BY position ASC`)
+  const rows = stmt.all(todoId) as Array<Record<string, unknown>>
+  return rows.map((row) => ({
+    id: String(row.id),
+    todo_id: String(row.todo_id),
+    title: String(row.title),
+    completed: Boolean(row.completed),
+    position: Number(row.position),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  }))
+}
+
+export function createSubtask(data: {
+  todo_id: string
+  title: string
+  completed?: boolean
+  position?: number
+  created_at?: string
+  updated_at?: string
+}): Subtask {
+  const now = new Date().toISOString()
+  const subtask: Subtask = {
+    id: uuidv4(),
+    todo_id: data.todo_id,
+    title: data.title.trim(),
+    completed: Boolean(data.completed),
+    position: data.position ?? 0,
+    created_at: data.created_at ?? now,
+    updated_at: data.updated_at ?? now,
+  }
+  const stmt = db.prepare(
+    `INSERT INTO subtasks (id, todo_id, title, completed, position, created_at, updated_at)
+      VALUES (@id, @todo_id, @title, @completed, @position, @created_at, @updated_at)`
+  )
+  stmt.run({
+    id: subtask.id,
+    todo_id: subtask.todo_id,
+    title: subtask.title,
+    completed: subtask.completed ? 1 : 0,
+    position: subtask.position,
+    created_at: subtask.created_at,
+    updated_at: subtask.updated_at,
+  })
+  return subtask
+}
+
+export function getAllSubtasks(): Subtask[] {
+  const stmt = db.prepare(`SELECT * FROM subtasks ORDER BY todo_id ASC, position ASC`)
+  const rows = stmt.all() as Array<Record<string, unknown>>
+  return rows.map((row) => ({
+    id: String(row.id),
+    todo_id: String(row.todo_id),
+    title: String(row.title),
+    completed: Boolean(row.completed),
+    position: Number(row.position),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  }))
+}
+
+export function exportAllData() {
+  return {
+    version: 1,
+    exported_at: new Date().toISOString(),
+    todos: getAllTodos(),
+    tags: getAllTags(),
+    todo_tags: getAllTodoTags(),
+    subtasks: getAllSubtasks(),
+  }
+}
+
+export function importBackup(data: {
+  version: number
+  todos?: Array<Partial<Todo> & { id: string }>
+  tags?: Array<Partial<Tag> & { id: string }>
+  todo_tags?: Array<Partial<TodoTag> & { todo_id: string; tag_id: string }>
+  subtasks?: Array<Partial<Subtask> & { id: string; todo_id: string }>
+}) {
+  if (data.version !== 1) {
+    throw new Error('Unsupported export version')
+  }
+
+  const now = new Date().toISOString()
+  const todoIdMap = new Map<string, string>()
+  const tagIdMap = new Map<string, string>()
+
+  // Import tags: reuse existing when name conflict
+  ;(data.tags ?? []).forEach((tag) => {
+    const name = tag.name?.trim() ?? ''
+    if (!name) return
+    const existing = getTagByName(name)
+    if (existing) {
+      tagIdMap.set(tag.id, existing.id)
+      return
+    }
+    const created = createTag({
+      name,
+      created_at: tag.created_at ?? now,
+      updated_at: tag.updated_at ?? now,
+    })
+    tagIdMap.set(tag.id, created.id)
+  })
+
+  // Import todos
+  ;(data.todos ?? []).forEach((todo) => {
+    const created = createTodo({
+      title: todo.title ?? 'Untitled',
+      due_date: todo.due_date ?? null,
+      priority: todo.priority ?? 'medium',
+      is_recurring: todo.is_recurring ?? false,
+      recurrence_pattern: todo.recurrence_pattern ?? null,
+    })
+    // Update timestamps if provided
+    if (todo.created_at || todo.updated_at) {
+      const stmt = db.prepare(`UPDATE todos SET created_at = @created_at, updated_at = @updated_at WHERE id = @id`)
+      stmt.run({
+        id: created.id,
+        created_at: todo.created_at ?? created.created_at,
+        updated_at: todo.updated_at ?? created.updated_at,
+      })
+    }
+    todoIdMap.set(todo.id, created.id)
+  })
+
+  // Import subtasks
+  ;(data.subtasks ?? []).forEach((subtask) => {
+    const mappedTodoId = todoIdMap.get(subtask.todo_id)
+    if (!mappedTodoId) return
+    const created = createSubtask({
+      todo_id: mappedTodoId,
+      title: subtask.title ?? 'Subtask',
+      completed: subtask.completed ?? false,
+      position: subtask.position ?? 0,
+      created_at: subtask.created_at ?? now,
+      updated_at: subtask.updated_at ?? now,
+    })
+    // No further mapping needed for subtasks currently
+  })
+
+  // Import todo-tags associations
+  ;(data.todo_tags ?? []).forEach((assoc) => {
+    const mappedTodoId = todoIdMap.get(assoc.todo_id)
+    const mappedTagId = tagIdMap.get(assoc.tag_id)
+    if (!mappedTodoId || !mappedTagId) return
+    addTagToTodo(mappedTodoId, mappedTagId)
+  })
+
+  return {
+    imported: {
+      todos: todoIdMap.size,
+      tags: tagIdMap.size,
+      subtasks: (data.subtasks ?? []).length,
+      associations: (data.todo_tags ?? []).length,
+    },
+  }
 }
