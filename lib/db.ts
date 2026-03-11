@@ -25,7 +25,20 @@ export interface Tag {
   color: string
 }
 
+export interface Subtask {
+  id: string
+  todo_id: string
+  title: string
+  completed: boolean
+  position: number
+  created_at: string
+  updated_at: string
+}
+
 const db = new Database('todos.db')
+
+// Enable foreign key enforcement for CASCADE delete
+db.pragma('foreign_keys = ON')
 
 // Ensure schema exists
 // Due date is stored as ISO string UTC (e.g. 2026-03-11T10:00:00.000Z)
@@ -96,6 +109,20 @@ CREATE TABLE IF NOT EXISTS todo_tags (
 );
 CREATE INDEX IF NOT EXISTS todo_tags_todo_id ON todo_tags(todo_id);
 CREATE INDEX IF NOT EXISTS todo_tags_tag_id ON todo_tags(tag_id);
+`)
+
+// Subtasks table
+db.exec(`
+CREATE TABLE IF NOT EXISTS subtasks (
+  id TEXT PRIMARY KEY,
+  todo_id TEXT NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  completed INTEGER NOT NULL DEFAULT 0,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS subtasks_todo_id ON subtasks(todo_id);
 `)
 
 export function getAllTodos(): Todo[] {
@@ -369,4 +396,69 @@ export function addTodoTag(todoId: string, tagId: string): void {
 export function removeTodoTag(todoId: string, tagId: string): void {
   const stmt = db.prepare(`DELETE FROM todo_tags WHERE todo_id = ? AND tag_id = ?`)
   stmt.run(todoId, tagId)
+}
+
+// --- Subtasks ---
+
+function mapSubtaskRow(row: Record<string, unknown>): Subtask {
+  return {
+    id: String(row.id),
+    todo_id: String(row.todo_id),
+    title: String(row.title),
+    completed: Boolean(row.completed),
+    position: Number(row.position ?? 0),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  }
+}
+
+export function getSubtasksByTodoId(todoId: string): Subtask[] {
+  const stmt = db.prepare(`SELECT * FROM subtasks WHERE todo_id = ? ORDER BY position ASC, created_at ASC`)
+  const rows = stmt.all(todoId) as Array<Record<string, unknown>>
+  return rows.map(mapSubtaskRow)
+}
+
+export function getSubtaskById(id: string): Subtask | null {
+  const stmt = db.prepare(`SELECT * FROM subtasks WHERE id = ?`)
+  const row = stmt.get(id) as Record<string, unknown> | undefined
+  if (!row) return null
+  return mapSubtaskRow(row)
+}
+
+export function createSubtask(data: { todo_id: string; title: string }): Subtask {
+  const now = new Date().toISOString()
+  const id = uuidv4()
+  const maxPos = db.prepare(`SELECT COALESCE(MAX(position), -1) AS mp FROM subtasks WHERE todo_id = ?`)
+    .get(data.todo_id) as Record<string, unknown>
+  const position = Number(maxPos.mp ?? -1) + 1
+  const stmt = db.prepare(
+    `INSERT INTO subtasks (id, todo_id, title, completed, position, created_at, updated_at)
+      VALUES (@id, @todo_id, @title, 0, @position, @created_at, @updated_at)`
+  )
+  stmt.run({ id, todo_id: data.todo_id, title: data.title.trim(), position, created_at: now, updated_at: now })
+  return { id, todo_id: data.todo_id, title: data.title.trim(), completed: false, position, created_at: now, updated_at: now }
+}
+
+export function updateSubtask(id: string, updates: { title?: string; completed?: boolean; position?: number }): Subtask | null {
+  const existing = getSubtaskById(id)
+  if (!existing) return null
+  const now = new Date().toISOString()
+  const updated: Subtask = {
+    ...existing,
+    title: updates.title !== undefined ? updates.title.trim() : existing.title,
+    completed: updates.completed !== undefined ? updates.completed : existing.completed,
+    position: updates.position !== undefined ? updates.position : existing.position,
+    updated_at: now,
+  }
+  const stmt = db.prepare(
+    `UPDATE subtasks SET title = @title, completed = @completed, position = @position, updated_at = @updated_at WHERE id = @id`
+  )
+  stmt.run({ id, title: updated.title, completed: updated.completed ? 1 : 0, position: updated.position, updated_at: now })
+  return updated
+}
+
+export function deleteSubtask(id: string): boolean {
+  const stmt = db.prepare(`DELETE FROM subtasks WHERE id = ?`)
+  const result = stmt.run(id)
+  return result.changes > 0
 }

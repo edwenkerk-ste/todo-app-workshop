@@ -213,6 +213,73 @@ button {
   border-color: rgba(59, 130, 246, 0.6);
 }
 
+/* Subtask & Progress styles */
+.todo-item-wrapper {
+  margin-bottom: 0.5rem;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.todo-item-wrapper--overdue {
+  border-color: rgba(240, 73, 73, 0.35);
+}
+
+.todo-item-wrapper > .todo-item {
+  margin-bottom: 0;
+  border: none;
+  border-radius: 0;
+}
+
+.subtask-section {
+  padding: 0.75rem 0.85rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.progress-bar-track {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin-bottom: 0.25rem;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--primary);
+  transition: width 0.3s ease;
+}
+
+.progress-bar-fill--complete {
+  background: var(--success);
+}
+
+.progress-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
+.subtask-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.25rem;
+}
+
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.subtask-item:last-child {
+  border-bottom: none;
+}
+
 @media (max-width: 640px) {
   .container {
     padding: 1.25rem;
