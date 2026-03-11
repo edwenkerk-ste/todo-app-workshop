@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { formatSingaporeDate, formatSingaporeForInput, getSingaporeNow, parseSingaporeLocalIso } from '@/lib/timezone'
 import type { Priority } from '@/lib/db'
+import { filterTodosByPriority, sortTodosByPriority } from '@/lib/priority'
 
 type Todo = {
   id: string
@@ -26,24 +27,6 @@ const priorityClasses: Record<Priority, string> = {
   low: 'badge--low',
 }
 
-function sortTodos(todos: Todo[]): Todo[] {
-  const priorityOrder: Record<Priority, number> = { high: 3, medium: 2, low: 1 }
-  return [...todos].sort((a, b) => {
-    if (a.completed !== b.completed) {
-      return a.completed ? 1 : -1
-    }
-    const pa = priorityOrder[a.priority]
-    const pb = priorityOrder[b.priority]
-    if (pa !== pb) return pb - pa
-
-    const da = a.due_date ? Date.parse(a.due_date) : Number.POSITIVE_INFINITY
-    const db = b.due_date ? Date.parse(b.due_date) : Number.POSITIVE_INFINITY
-    if (da !== db) return da - db
-
-    return Date.parse(a.created_at) - Date.parse(b.created_at)
-  })
-}
-
 function isOverdue(todo: Todo): boolean {
   if (todo.completed) return false
   if (!todo.due_date) return false
@@ -59,6 +42,7 @@ export default function Page() {
   const [title, setTitle] = useState('')
   const [dueDate, setDueDate] = useState<string>('')
   const [priority, setPriority] = useState<Priority>('medium')
+  const [selectedPriority, setSelectedPriority] = useState<Priority | 'all'>('all')
   const [editing, setEditing] = useState<Todo | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Todo | null>(null)
 
@@ -71,7 +55,7 @@ export default function Page() {
       if (!res.ok || !body.success) {
         throw new Error(body?.error ?? 'Failed to fetch todos')
       }
-      setTodos(sortTodos(body.data))
+      setTodos(sortTodosByPriority(body.data))
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -83,12 +67,17 @@ export default function Page() {
     fetchTodos()
   }, [])
 
-  const overdueTodos = useMemo(() => todos.filter((t) => isOverdue(t)), [todos])
-  const activeTodos = useMemo(
-    () => todos.filter((t) => !t.completed && !isOverdue(t)),
-    [todos]
+  const filteredTodos = useMemo(
+    () => filterTodosByPriority(todos, selectedPriority),
+    [todos, selectedPriority]
   )
-  const completedTodos = useMemo(() => todos.filter((t) => t.completed), [todos])
+
+  const overdueTodos = useMemo(() => filteredTodos.filter((t) => isOverdue(t)), [filteredTodos])
+  const activeTodos = useMemo(
+    () => filteredTodos.filter((t) => !t.completed && !isOverdue(t)),
+    [filteredTodos]
+  )
+  const completedTodos = useMemo(() => filteredTodos.filter((t) => t.completed), [filteredTodos])
 
   const resetForm = () => {
     setTitle('')
@@ -115,7 +104,7 @@ export default function Page() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
-    setTodos((prev) => sortTodos([optimisticTodo, ...prev]))
+    setTodos((prev) => sortTodosByPriority([optimisticTodo, ...prev]))
     resetForm()
 
     try {
@@ -129,7 +118,7 @@ export default function Page() {
         throw new Error(body?.error ?? 'Failed to create todo')
       }
       setTodos((prev) => {
-        return sortTodos(prev.map((t) => (t.id === optimisticTodo.id ? body.data : t)))
+        return sortTodosByPriority(prev.map((t) => (t.id === optimisticTodo.id ? body.data : t)))
       })
     } catch (err) {
       setError((err as Error).message)
@@ -139,7 +128,7 @@ export default function Page() {
 
   const handleToggleComplete = async (todo: Todo) => {
     const updated: Todo = { ...todo, completed: !todo.completed }
-    setTodos((prev) => sortTodos(prev.map((t) => (t.id === todo.id ? updated : t))))
+    setTodos((prev) => sortTodosByPriority(prev.map((t) => (t.id === todo.id ? updated : t))))
 
     try {
       const res = await fetch(`/api/todos/${todo.id}`, {
@@ -151,7 +140,7 @@ export default function Page() {
       if (!res.ok || !body.success) {
         throw new Error(body?.error ?? 'Failed to update todo')
       }
-      setTodos((prev) => sortTodos(prev.map((t) => (t.id === todo.id ? body.data : t))))
+      setTodos((prev) => sortTodosByPriority(prev.map((t) => (t.id === todo.id ? body.data : t))))
     } catch (err) {
       setError((err as Error).message)
       setTodos((prev) => prev.map((t) => (t.id === todo.id ? todo : t)))
@@ -185,7 +174,7 @@ export default function Page() {
     else payload.due_date = null
 
     const optimistic: Todo = { ...editing, title: trimmed, due_date: dueDate || null, priority }
-    setTodos((prev) => sortTodos(prev.map((t) => (t.id === editing.id ? optimistic : t))))
+    setTodos((prev) => sortTodosByPriority(prev.map((t) => (t.id === editing.id ? optimistic : t))))
 
     try {
       const res = await fetch(`/api/todos/${editing.id}`, {
@@ -197,7 +186,7 @@ export default function Page() {
       if (!res.ok || !body.success) {
         throw new Error(body?.error ?? 'Failed to update todo')
       }
-      setTodos((prev) => sortTodos(prev.map((t) => (t.id === editing.id ? body.data : t))))
+      setTodos((prev) => sortTodosByPriority(prev.map((t) => (t.id === editing.id ? body.data : t))))
       closeModal()
     } catch (err) {
       setError((err as Error).message)
@@ -295,6 +284,23 @@ export default function Page() {
           <button className="button" onClick={handleCreate} disabled={loading}>
             {loading ? 'Saving…' : 'Create Todo'}
           </button>
+        </div>
+      </section>
+
+      <section className="list-section" aria-label="Todo filters">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
+          <select
+            className="select"
+            value={selectedPriority}
+            onChange={(e) => setSelectedPriority(e.target.value as Priority | 'all')}
+            aria-label="Filter by priority"
+            style={{ maxWidth: 200 }}
+          >
+            <option value="all">All priorities</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
         </div>
       </section>
 
