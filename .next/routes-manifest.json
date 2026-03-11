@@ -22,12 +22,44 @@
   },
   "dynamicRoutes": [
     {
+      "page": "/api/subtasks/[id]",
+      "regex": "^/api/subtasks/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/subtasks/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/tags/[id]",
+      "regex": "^/api/tags/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/tags/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/todos/[id]",
       "regex": "^/api/todos/([^/]+?)(?:/)?$",
       "routeKeys": {
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/todos/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/todos/[id]/subtasks",
+      "regex": "^/api/todos/([^/]+?)/subtasks(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/todos/(?<nxtPid>[^/]+?)/subtasks(?:/)?$"
+    },
+    {
+      "page": "/api/todos/[id]/tags",
+      "regex": "^/api/todos/([^/]+?)/tags(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/todos/(?<nxtPid>[^/]+?)/tags(?:/)?$"
     }
   ],
   "staticRoutes": [
@@ -48,6 +80,18 @@
       "regex": "^/_not\\-found(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/api/notifications/check",
+      "regex": "^/api/notifications/check(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/notifications/check(?:/)?$"
+    },
+    {
+      "page": "/api/tags",
+      "regex": "^/api/tags(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/tags(?:/)?$"
     },
     {
       "page": "/api/todos",
