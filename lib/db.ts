@@ -40,6 +40,22 @@ export interface Subtask {
   updated_at: string
 }
 
+export interface Template {
+  id: string
+  name: string
+  description: string | null
+  category: string | null
+  title_template: string
+  priority: Priority
+  is_recurring: boolean
+  recurrence_pattern: RecurrencePattern | null
+  reminder_minutes: number | null
+  subtasks_json: string | null
+  due_date_offset_days: number | null
+  created_at: string
+  updated_at: string
+}
+
 const db = new Database('todos.db')
 
 // Enable foreign key enforcement for CASCADE delete
@@ -158,6 +174,25 @@ CREATE TABLE IF NOT EXISTS subtasks (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS subtasks_todo_id ON subtasks(todo_id);
+`)
+
+// Templates table
+db.exec(`
+CREATE TABLE IF NOT EXISTS templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NULL,
+  category TEXT NULL,
+  title_template TEXT NOT NULL,
+  priority TEXT NOT NULL DEFAULT 'medium',
+  is_recurring INTEGER NOT NULL DEFAULT 0,
+  recurrence_pattern TEXT NULL,
+  reminder_minutes INTEGER NULL,
+  subtasks_json TEXT NULL,
+  due_date_offset_days INTEGER NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 `)
 
 export function getAllTodos(): Todo[] {
@@ -647,4 +682,136 @@ export function importBackup(data: {
       associations: (data.todo_tags ?? []).length,
     },
   }
+}
+
+// --- Templates ---
+
+function mapTemplateRow(row: Record<string, unknown>): Template {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    description: row.description === null || row.description === undefined ? null : String(row.description),
+    category: row.category === null || row.category === undefined ? null : String(row.category),
+    title_template: String(row.title_template),
+    priority: normalizePriority(row.priority),
+    is_recurring: Boolean(row.is_recurring),
+    recurrence_pattern: row.recurrence_pattern === null ? null : String(row.recurrence_pattern) as RecurrencePattern,
+    reminder_minutes: row.reminder_minutes === null || row.reminder_minutes === undefined ? null : Number(row.reminder_minutes),
+    subtasks_json: row.subtasks_json === null || row.subtasks_json === undefined ? null : String(row.subtasks_json),
+    due_date_offset_days: row.due_date_offset_days === null || row.due_date_offset_days === undefined ? null : Number(row.due_date_offset_days),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  }
+}
+
+export function getAllTemplates(): Template[] {
+  const stmt = db.prepare(`SELECT * FROM templates ORDER BY name ASC`)
+  const rows = stmt.all() as Array<Record<string, unknown>>
+  return rows.map(mapTemplateRow)
+}
+
+export function getTemplateById(id: string): Template | null {
+  const stmt = db.prepare(`SELECT * FROM templates WHERE id = ?`)
+  const row = stmt.get(id) as Record<string, unknown> | undefined
+  if (!row) return null
+  return mapTemplateRow(row)
+}
+
+export function createTemplate(data: {
+  name: string
+  description?: string | null
+  category?: string | null
+  title_template: string
+  priority?: Priority
+  is_recurring?: boolean
+  recurrence_pattern?: RecurrencePattern | null
+  reminder_minutes?: number | null
+  subtasks_json?: string | null
+  due_date_offset_days?: number | null
+}): Template {
+  const now = new Date().toISOString()
+  const isRecurring = Boolean(data.is_recurring)
+  const template: Template = {
+    id: uuidv4(),
+    name: data.name.trim(),
+    description: data.description?.trim() || null,
+    category: data.category?.trim() || null,
+    title_template: data.title_template.trim(),
+    priority: normalizePriority(data.priority),
+    is_recurring: isRecurring,
+    recurrence_pattern: isRecurring ? (data.recurrence_pattern ?? null) : null,
+    reminder_minutes: data.reminder_minutes ?? null,
+    subtasks_json: data.subtasks_json ?? null,
+    due_date_offset_days: data.due_date_offset_days ?? null,
+    created_at: now,
+    updated_at: now,
+  }
+  const stmt = db.prepare(
+    `INSERT INTO templates (id, name, description, category, title_template, priority, is_recurring, recurrence_pattern, reminder_minutes, subtasks_json, due_date_offset_days, created_at, updated_at)
+      VALUES (@id, @name, @description, @category, @title_template, @priority, @is_recurring, @recurrence_pattern, @reminder_minutes, @subtasks_json, @due_date_offset_days, @created_at, @updated_at)`
+  )
+  stmt.run({
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    category: template.category,
+    title_template: template.title_template,
+    priority: template.priority,
+    is_recurring: template.is_recurring ? 1 : 0,
+    recurrence_pattern: template.recurrence_pattern,
+    reminder_minutes: template.reminder_minutes,
+    subtasks_json: template.subtasks_json,
+    due_date_offset_days: template.due_date_offset_days,
+    created_at: template.created_at,
+    updated_at: template.updated_at,
+  })
+  return template
+}
+
+export function updateTemplate(id: string, updates: Partial<Omit<Template, 'id' | 'created_at'>>): Template | null {
+  const existing = getTemplateById(id)
+  if (!existing) return null
+  const now = new Date().toISOString()
+  const nextRecurring = updates.is_recurring ?? existing.is_recurring
+  const updated: Template = {
+    ...existing,
+    name: updates.name !== undefined ? updates.name.trim() : existing.name,
+    description: updates.description !== undefined ? (updates.description?.trim() || null) : existing.description,
+    category: updates.category !== undefined ? (updates.category?.trim() || null) : existing.category,
+    title_template: updates.title_template !== undefined ? updates.title_template.trim() : existing.title_template,
+    priority: normalizePriority(updates.priority ?? existing.priority),
+    is_recurring: nextRecurring,
+    recurrence_pattern: nextRecurring ? (updates.recurrence_pattern ?? existing.recurrence_pattern) : null,
+    reminder_minutes: updates.reminder_minutes !== undefined ? updates.reminder_minutes : existing.reminder_minutes,
+    subtasks_json: updates.subtasks_json !== undefined ? updates.subtasks_json : existing.subtasks_json,
+    due_date_offset_days: updates.due_date_offset_days !== undefined ? updates.due_date_offset_days : existing.due_date_offset_days,
+    updated_at: now,
+  }
+  const stmt = db.prepare(
+    `UPDATE templates SET name = @name, description = @description, category = @category, title_template = @title_template,
+      priority = @priority, is_recurring = @is_recurring, recurrence_pattern = @recurrence_pattern,
+      reminder_minutes = @reminder_minutes, subtasks_json = @subtasks_json, due_date_offset_days = @due_date_offset_days,
+      updated_at = @updated_at WHERE id = @id`
+  )
+  stmt.run({
+    id,
+    name: updated.name,
+    description: updated.description,
+    category: updated.category,
+    title_template: updated.title_template,
+    priority: updated.priority,
+    is_recurring: updated.is_recurring ? 1 : 0,
+    recurrence_pattern: updated.recurrence_pattern,
+    reminder_minutes: updated.reminder_minutes,
+    subtasks_json: updated.subtasks_json,
+    due_date_offset_days: updated.due_date_offset_days,
+    updated_at: updated.updated_at,
+  })
+  return updated
+}
+
+export function deleteTemplate(id: string): boolean {
+  const stmt = db.prepare(`DELETE FROM templates WHERE id = ?`)
+  const result = stmt.run(id)
+  return result.changes > 0
 }

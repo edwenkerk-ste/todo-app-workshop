@@ -38,6 +38,22 @@
       "namedRegex": "^/api/tags/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/templates/[id]",
+      "regex": "^/api/templates/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/templates/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/templates/[id]/use",
+      "regex": "^/api/templates/([^/]+?)/use(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/templates/(?<nxtPid>[^/]+?)/use(?:/)?$"
+    },
+    {
       "page": "/api/todos/[id]",
       "regex": "^/api/todos/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -94,10 +110,28 @@
       "namedRegex": "^/api/tags(?:/)?$"
     },
     {
+      "page": "/api/templates",
+      "regex": "^/api/templates(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/templates(?:/)?$"
+    },
+    {
       "page": "/api/todos",
       "regex": "^/api/todos(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/todos(?:/)?$"
+    },
+    {
+      "page": "/api/todos/export",
+      "regex": "^/api/todos/export(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/todos/export(?:/)?$"
+    },
+    {
+      "page": "/api/todos/import",
+      "regex": "^/api/todos/import(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/todos/import(?:/)?$"
     }
   ],
   "dataRoutes": [],

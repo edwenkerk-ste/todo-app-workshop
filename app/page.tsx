@@ -24,6 +24,22 @@ type Subtask = {
   updated_at: string
 }
 
+type Template = {
+  id: string
+  name: string
+  description: string | null
+  category: string | null
+  title_template: string
+  priority: Priority
+  is_recurring: boolean
+  recurrence_pattern: RecurrencePattern | null
+  reminder_minutes: number | null
+  subtasks_json: string | null
+  due_date_offset_days: number | null
+  created_at: string
+  updated_at: string
+}
+
 type Todo = {
   id: string
   title: string
@@ -107,6 +123,15 @@ export default function Page() {
   const [expandedTodoId, setExpandedTodoId] = useState<string | null>(null)
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
 
+  // Template state
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [templatesModalOpen, setTemplatesModalOpen] = useState(false)
+  const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateDescription, setTemplateDescription] = useState('')
+  const [templateCategory, setTemplateCategory] = useState('')
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState<string>('all')
+
   const fetchTodos = async () => {
     setLoading(true)
     setError(null)
@@ -141,6 +166,143 @@ export default function Page() {
   useEffect(() => {
     fetchTags()
   }, [fetchTags])
+
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const res = await fetch('/api/templates')
+      const body = await res.json()
+      if (res.ok && body.success) setTemplates(body.data)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchTemplates()
+  }, [fetchTemplates])
+
+  const templateCategories = useMemo(() => {
+    const cats = new Set<string>()
+    templates.forEach((t) => { if (t.category) cats.add(t.category) })
+    return Array.from(cats).sort()
+  }, [templates])
+
+  const filteredTemplates = useMemo(() => {
+    if (templateCategoryFilter === 'all') return templates
+    return templates.filter((t) => t.category === templateCategoryFilter)
+  }, [templates, templateCategoryFilter])
+
+  const handleSaveAsTemplate = async () => {
+    const name = templateName.trim()
+    if (!name) {
+      setError('Template name is required')
+      return
+    }
+    const trimmedTitle = title.trim()
+    if (!trimmedTitle) {
+      setError('Todo title is required to save as template')
+      return
+    }
+
+    const subtasksForTemplate: Array<{ title: string; position: number }> = []
+    const payload: Record<string, unknown> = {
+      name,
+      description: templateDescription.trim() || null,
+      category: templateCategory.trim() || null,
+      title_template: trimmedTitle,
+      priority,
+      is_recurring: isRecurring,
+      recurrence_pattern: isRecurring ? recurrencePattern : null,
+      reminder_minutes: dueDate ? reminderMinutes : null,
+      subtasks_json: subtasksForTemplate.length > 0 ? JSON.stringify(subtasksForTemplate) : null,
+      due_date_offset_days: null,
+    }
+
+    try {
+      const res = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const body = await res.json()
+      if (!res.ok || !body.success) {
+        throw new Error(body?.error ?? 'Failed to save template')
+      }
+      setTemplates((prev) => [...prev, body.data].sort((a: Template, b: Template) => a.name.localeCompare(b.name)))
+      setSaveTemplateModalOpen(false)
+      setTemplateName('')
+      setTemplateDescription('')
+      setTemplateCategory('')
+      setInfo('Template saved')
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  const handleSaveTodoAsTemplate = async (todo: Todo) => {
+    const subtasks = subtasksMap[todo.id] ?? []
+    const subtasksForTemplate = subtasks.map((s, idx) => ({
+      title: s.title,
+      position: s.position ?? idx,
+    }))
+
+    const payload: Record<string, unknown> = {
+      name: todo.title,
+      description: null,
+      category: null,
+      title_template: todo.title,
+      priority: todo.priority,
+      is_recurring: todo.is_recurring,
+      recurrence_pattern: todo.recurrence_pattern,
+      reminder_minutes: todo.reminder_minutes,
+      subtasks_json: subtasksForTemplate.length > 0 ? JSON.stringify(subtasksForTemplate) : null,
+      due_date_offset_days: null,
+    }
+
+    try {
+      const res = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const body = await res.json()
+      if (!res.ok || !body.success) {
+        throw new Error(body?.error ?? 'Failed to save template')
+      }
+      setTemplates((prev) => [...prev, body.data].sort((a: Template, b: Template) => a.name.localeCompare(b.name)))
+      setInfo(`Template "${todo.title}" saved`)
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  const handleUseTemplate = async (templateId: string) => {
+    try {
+      const res = await fetch(`/api/templates/${templateId}/use`, { method: 'POST' })
+      const body = await res.json()
+      if (!res.ok || !body.success) {
+        throw new Error(body?.error ?? 'Failed to use template')
+      }
+      await fetchTodos()
+      setTemplatesModalOpen(false)
+      setInfo('Todo created from template')
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    try {
+      const res = await fetch(`/api/templates/${templateId}`, { method: 'DELETE' })
+      const body = await res.json()
+      if (!res.ok || !body.success) {
+        throw new Error(body?.error ?? 'Failed to delete template')
+      }
+      setTemplates((prev) => prev.filter((t) => t.id !== templateId))
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
 
   const filteredByPriority = useMemo(
     () => filterTodosByPriority(todos, selectedPriority),
@@ -587,6 +749,9 @@ export default function Page() {
             <button className="small-btn" onClick={() => openEdit(todo)}>
               Edit
             </button>
+            <button className="small-btn" onClick={() => handleSaveTodoAsTemplate(todo)}>
+              Save as Template
+            </button>
             <button className="small-btn" onClick={() => setConfirmDelete(todo)}>
               Delete
             </button>
@@ -783,10 +948,43 @@ export default function Page() {
             <button className="button" onClick={handleCreate} disabled={loading}>
               {loading ? 'Saving…' : 'Create Todo'}
             </button>
+            {title.trim() && (
+              <button
+                type="button"
+                className="small-btn"
+                onClick={() => setSaveTemplateModalOpen(true)}
+              >
+                Save as Template
+              </button>
+            )}
             <button type="button" className="small-btn" onClick={() => setManageTagsOpen(true)}>
               Manage Tags
             </button>
+            <button type="button" className="small-btn" onClick={() => setTemplatesModalOpen(true)}>
+              Templates
+            </button>
           </div>
+          {templates.length > 0 && (
+            <div>
+              <label>
+                <div style={{ marginBottom: 4 }}>Use Template</div>
+                <select
+                  className="select"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) void handleUseTemplate(e.target.value)
+                  }}
+                >
+                  <option value="">Select a template...</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}{t.category ? ` (${t.category})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
         </div>
       </section>
 
@@ -1172,6 +1370,154 @@ export default function Page() {
                   ))}
                 </ul>
               )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {templatesModalOpen ? (
+        <div className="modal-backdrop" onClick={() => setTemplatesModalOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Templates</h3>
+              <button className="close-button" onClick={() => setTemplatesModalOpen(false)} aria-label="Close">
+                ×
+              </button>
+            </div>
+            {templateCategories.length > 0 && (
+              <div style={{ marginBottom: '1rem' }}>
+                <label>
+                  <div style={{ marginBottom: 4 }}>Filter by category</div>
+                  <select
+                    className="select"
+                    value={templateCategoryFilter}
+                    onChange={(e) => setTemplateCategoryFilter(e.target.value)}
+                  >
+                    <option value="all">All categories</option>
+                    {templateCategories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+            {filteredTemplates.length === 0 ? (
+              <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>
+                No templates yet. Save a todo as a template to get started.
+              </p>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {filteredTemplates.map((tmpl) => (
+                  <li key={tmpl.id} style={{ marginBottom: '1rem', padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 8 }}>
+                    <div style={{ marginBottom: '0.5rem' }}>
+                      <strong>{tmpl.name}</strong>
+                      {tmpl.category && (
+                        <span className="badge" style={{ marginLeft: 8, backgroundColor: '#8b5cf6', color: '#fff' }}>
+                          {tmpl.category}
+                        </span>
+                      )}
+                    </div>
+                    {tmpl.description && (
+                      <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', color: 'var(--muted)' }}>
+                        {tmpl.description}
+                      </p>
+                    )}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: '0.5rem' }}>
+                      <span className={`badge ${priorityClasses[tmpl.priority]}`}>
+                        {priorityLabels[tmpl.priority]}
+                      </span>
+                      {tmpl.is_recurring && tmpl.recurrence_pattern && (
+                        <span className="badge" style={{ marginLeft: 4 }}>
+                          🔄 {tmpl.recurrence_pattern}
+                        </span>
+                      )}
+                      {tmpl.reminder_minutes !== null && (
+                        <span className="badge" style={{ marginLeft: 4 }}>
+                          🔔 {formatReminderLabel(tmpl.reminder_minutes)}
+                        </span>
+                      )}
+                      {tmpl.subtasks_json && (
+                        <span className="badge" style={{ marginLeft: 4 }}>
+                          {(() => {
+                            try { return `${JSON.parse(tmpl.subtasks_json).length} subtasks` } catch { return 'subtasks' }
+                          })()}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button className="small-btn" onClick={() => handleUseTemplate(tmpl.id)}>
+                        Use
+                      </button>
+                      <button
+                        className="small-btn"
+                        style={{ color: '#f87171' }}
+                        onClick={() => handleDeleteTemplate(tmpl.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {saveTemplateModalOpen ? (
+        <div className="modal-backdrop" onClick={() => setSaveTemplateModalOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Save as Template</h3>
+              <button className="close-button" onClick={() => setSaveTemplateModalOpen(false)} aria-label="Close">
+                ×
+              </button>
+            </div>
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              <label>
+                <div style={{ marginBottom: 4 }}>Template name *</div>
+                <input
+                  className="input"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="e.g. Weekly Review"
+                />
+              </label>
+              <label>
+                <div style={{ marginBottom: 4 }}>Description</div>
+                <input
+                  className="input"
+                  value={templateDescription}
+                  onChange={(e) => setTemplateDescription(e.target.value)}
+                  placeholder="Optional description"
+                />
+              </label>
+              <label>
+                <div style={{ marginBottom: 4 }}>Category</div>
+                <input
+                  className="input"
+                  value={templateCategory}
+                  onChange={(e) => setTemplateCategory(e.target.value)}
+                  placeholder="e.g. Work, Personal, Health"
+                />
+              </label>
+              <div style={{ fontSize: '0.875rem', color: 'var(--muted)' }}>
+                <p style={{ margin: '0 0 0.25rem' }}>Will save:</p>
+                <ul style={{ margin: 0, paddingLeft: '1rem' }}>
+                  <li>Title: {title.trim() || '—'}</li>
+                  <li>Priority: {priorityLabels[priority]}</li>
+                  {isRecurring && <li>Recurrence: {recurrencePattern}</li>}
+                  {reminderMinutes !== null && dueDate && <li>Reminder: {formatReminderLabel(reminderMinutes)}</li>}
+                </ul>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button className="button" onClick={handleSaveAsTemplate}>
+                  Save Template
+                </button>
+                <button className="small-btn" onClick={() => setSaveTemplateModalOpen(false)}>
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
