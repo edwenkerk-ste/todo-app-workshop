@@ -1,3 +1,0 @@
-{
-  "/api/todos/[id]/subtasks/route": "app/api/todos/[id]/subtasks/route.js"
-}
