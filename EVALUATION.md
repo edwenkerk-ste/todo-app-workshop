@@ -292,36 +292,40 @@ This document provides a comprehensive checklist for evaluating the completeness
 ---
 
 ### ✅ Feature 09: Export & Import
-**Status:** ⬜ Not Started | ⬜ In Progress | ⬜ Complete | ⬜ Verified
+**Status:** ✅ Complete | ✅ Verified
 
 **Implementation Checklist:**
-- [ ] API endpoint: `GET /api/todos/export`
-- [ ] API endpoint: `POST /api/todos/import`
-- [ ] Export button in UI
-- [ ] Import button with file picker
-- [ ] JSON format with version field
-- [ ] Export includes: todos, subtasks, tags, associations
-- [ ] Import validation (format, required fields)
-- [ ] ID remapping on import
-- [ ] Tag name conflict resolution (reuse existing)
-- [ ] Success message with counts
-- [ ] Error handling for invalid JSON
+- [x] API endpoint: `GET /api/todos/export`
+- [x] API endpoint: `POST /api/todos/import`
+- [x] Export button in UI
+- [x] Import button with file picker
+- [x] JSON format with version field
+- [x] Export includes: todos, subtasks, tags, associations
+- [x] Import validation (format, required fields)
+- [x] ID remapping on import
+- [x] Tag name conflict resolution (reuse existing)
+- [x] Success message with counts
+- [x] Error handling for invalid JSON
 
 **Testing:**
-- [ ] E2E test: Export todos
-- [ ] E2E test: Import valid file
-- [ ] E2E test: Import invalid JSON (error shown)
-- [ ] E2E test: Import preserves all data
-- [ ] E2E test: Imported todos appear immediately
-- [ ] Unit test: ID remapping logic
-- [ ] Unit test: JSON validation
+- [x] E2E test: Export todos
+- [x] E2E test: Import valid file
+- [x] E2E test: Import invalid JSON (error shown)
+- [x] E2E test: Import preserves all data
+- [x] E2E test: Imported todos appear immediately
+- [x] Unit test: ID remapping logic
+- [x] Unit test: JSON validation
 
 **Acceptance Criteria:**
-- [ ] Export creates valid JSON
-- [ ] Import validates format
-- [ ] All relationships preserved
-- [ ] No duplicate tags created
-- [ ] Error messages clear
+- [x] Export creates valid JSON
+- [x] Import validates format
+- [x] All relationships preserved
+- [x] No duplicate tags created
+- [x] Error messages clear
+
+**Verification Notes:**
+- Unit tests (Vitest) and Playwright E2E tests for the export/import flows were added and executed; all pass locally.
+
 
 ---
 
