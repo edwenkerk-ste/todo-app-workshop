@@ -551,9 +551,20 @@ export function exportAllData() {
   }
 }
 
+/** Input shape for import (e.g. from JSON/Zod); priority and recurrence_pattern may be strings. */
 export function importBackup(data: {
   version: number
-  todos?: Array<Partial<Todo> & { id: string }>
+  todos?: Array<{
+    id: string
+    title?: string
+    due_date?: string | null
+    priority?: string
+    is_recurring?: boolean
+    recurrence_pattern?: string | null
+    completed?: boolean
+    created_at?: string
+    updated_at?: string
+  }>
   tags?: Array<Partial<Tag> & { id: string }>
   todo_tags?: Array<Partial<TodoTag> & { todo_id: string; tag_id: string }>
   subtasks?: Array<Partial<Subtask> & { id: string; todo_id: string }>
@@ -561,6 +572,10 @@ export function importBackup(data: {
   if (data.version !== 1) {
     throw new Error('Unsupported export version')
   }
+
+  const validPatterns: RecurrencePattern[] = ['daily', 'weekly', 'monthly', 'yearly']
+  const normalizeRecurrence = (p: string | null | undefined): RecurrencePattern | null =>
+    p && validPatterns.includes(p as RecurrencePattern) ? (p as RecurrencePattern) : null
 
   const now = new Date().toISOString()
   const todoIdMap = new Map<string, string>()
@@ -587,9 +602,9 @@ export function importBackup(data: {
     const created = createTodo({
       title: todo.title ?? 'Untitled',
       due_date: todo.due_date ?? null,
-      priority: todo.priority ?? 'medium',
+      priority: normalizePriority(todo.priority),
       is_recurring: todo.is_recurring ?? false,
-      recurrence_pattern: todo.recurrence_pattern ?? null,
+      recurrence_pattern: normalizeRecurrence(todo.recurrence_pattern ?? undefined),
     })
     if (todo.created_at || todo.updated_at) {
       const stmt = db.prepare(`UPDATE todos SET created_at = @created_at, updated_at = @updated_at WHERE id = @id`)
