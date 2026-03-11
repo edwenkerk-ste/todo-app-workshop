@@ -32,40 +32,41 @@ export async function PUT(
     return NextResponse.json({ success: false, error: parseResult.error.flatten().formErrors.join('; ') }, { status: 400 })
   }
 
-  const payload = { ...parseResult.data }
-  if (payload.due_date) {
-    payload.due_date = parseSingaporeLocalIso(payload.due_date).toISOString()
+  const parsed = { ...parseResult.data }
+  if (parsed.due_date) {
+    parsed.due_date = parseSingaporeLocalIso(parsed.due_date).toISOString()
   }
 
-  const effectiveDueDate = payload.due_date !== undefined ? payload.due_date : existing.due_date
-  if (payload.reminder_minutes !== undefined && payload.reminder_minutes !== null && !effectiveDueDate) {
+  const effectiveDueDate = parsed.due_date !== undefined ? parsed.due_date : existing.due_date
+  if (parsed.reminder_minutes !== undefined && parsed.reminder_minutes !== null && !effectiveDueDate) {
     return NextResponse.json({ success: false, error: 'Reminder requires a due date' }, { status: 400 })
   }
 
-  if (payload.is_recurring === false) {
-    payload.recurrence_pattern = null
+  if (parsed.is_recurring === false) {
+    parsed.recurrence_pattern = null
   }
 
-  if (payload.due_date === null) {
-    payload.reminder_minutes = null
+  if (parsed.due_date === null) {
+    parsed.reminder_minutes = null
   }
 
   const reminderConfigChanged =
-    (payload.due_date !== undefined && payload.due_date !== existing.due_date) ||
-    (payload.reminder_minutes !== undefined && payload.reminder_minutes !== existing.reminder_minutes)
+    (parsed.due_date !== undefined && parsed.due_date !== existing.due_date) ||
+    (parsed.reminder_minutes !== undefined && parsed.reminder_minutes !== existing.reminder_minutes)
 
+  const updatePayload: Record<string, unknown> = { ...parsed }
   if (reminderConfigChanged) {
-    payload.last_notification_sent = null
+    updatePayload.last_notification_sent = null
   }
 
   const shouldCreateNextInstance =
-    payload.completed === true &&
+    parsed.completed === true &&
     existing.completed === false &&
     existing.is_recurring &&
     Boolean(existing.recurrence_pattern) &&
     Boolean(existing.due_date)
 
-  const updated = updateTodo(id, payload)
+  const updated = updateTodo(id, updatePayload as any)
   if (!updated) {
     return NextResponse.json({ success: false, error: 'Todo not found' }, { status: 404 })
   }

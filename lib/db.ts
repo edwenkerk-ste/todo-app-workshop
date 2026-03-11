@@ -43,7 +43,21 @@ CREATE TABLE IF NOT EXISTS todos (
 CREATE INDEX IF NOT EXISTS todos_due_date_idx ON todos(due_date);
 CREATE INDEX IF NOT EXISTS todos_completed_idx ON todos(completed);
 CREATE INDEX IF NOT EXISTS todos_reminder_idx ON todos(completed, due_date, reminder_minutes);
+
+CREATE TABLE IF NOT EXISTS subtasks (
+  id TEXT PRIMARY KEY,
+  todo_id TEXT NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  completed INTEGER NOT NULL DEFAULT 0,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS subtasks_todo_id_idx ON subtasks(todo_id);
 `)
+
+// Enable foreign key enforcement (required for CASCADE delete in SQLite)
+db.pragma('foreign_keys = ON')
 
 // Migration for existing databases that predate recurring fields.
 try {
@@ -243,4 +257,107 @@ export function claimReminderNotification(id: string, sentAtIso: string): Todo |
     return null
   }
   return getTodoById(id)
+}
+
+// --------------- Subtask CRUD ---------------
+
+export interface Subtask {
+  id: string
+  todo_id: string
+  title: string
+  completed: boolean
+  position: number
+  created_at: string
+  updated_at: string
+}
+
+function mapSubtaskRow(row: Record<string, unknown>): Subtask {
+  return {
+    id: String(row.id),
+    todo_id: String(row.todo_id),
+    title: String(row.title),
+    completed: Boolean(row.completed),
+    position: Number(row.position ?? 0),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  }
+}
+
+export function getSubtasksByTodoId(todoId: string): Subtask[] {
+  const stmt = db.prepare(`SELECT * FROM subtasks WHERE todo_id = ? ORDER BY position ASC, created_at ASC`)
+  const rows = stmt.all(todoId) as Array<Record<string, unknown>>
+  return rows.map(mapSubtaskRow)
+}
+
+export function getSubtaskById(id: string): Subtask | null {
+  const stmt = db.prepare(`SELECT * FROM subtasks WHERE id = ?`)
+  const row = stmt.get(id) as Record<string, unknown> | undefined
+  if (!row) return null
+  return mapSubtaskRow(row)
+}
+
+export function createSubtask(data: { todo_id: string; title: string }): Subtask {
+  const now = new Date().toISOString()
+  const maxPosStmt = db.prepare(`SELECT COALESCE(MAX(position), -1) AS max_pos FROM subtasks WHERE todo_id = ?`)
+  const maxRow = maxPosStmt.get(data.todo_id) as Record<string, unknown> | undefined
+  const nextPosition = Number(maxRow?.max_pos ?? -1) + 1
+
+  const subtask: Subtask = {
+    id: uuidv4(),
+    todo_id: data.todo_id,
+    title: data.title.trim(),
+    completed: false,
+    position: nextPosition,
+    created_at: now,
+    updated_at: now,
+  }
+  const stmt = db.prepare(
+    `INSERT INTO subtasks (id, todo_id, title, completed, position, created_at, updated_at)
+      VALUES (@id, @todo_id, @title, @completed, @position, @created_at, @updated_at)`
+  )
+  stmt.run({
+    id: subtask.id,
+    todo_id: subtask.todo_id,
+    title: subtask.title,
+    completed: 0,
+    position: subtask.position,
+    created_at: subtask.created_at,
+    updated_at: subtask.updated_at,
+  })
+  return subtask
+}
+
+export function updateSubtask(id: string, updates: Partial<Pick<Subtask, 'title' | 'completed' | 'position'>>): Subtask | null {
+  const existing = getSubtaskById(id)
+  if (!existing) return null
+  const now = new Date().toISOString()
+  const updated: Subtask = {
+    ...existing,
+    title: updates.title !== undefined ? updates.title.trim() : existing.title,
+    completed: updates.completed !== undefined ? updates.completed : existing.completed,
+    position: updates.position !== undefined ? updates.position : existing.position,
+    updated_at: now,
+  }
+  const stmt = db.prepare(
+    `UPDATE subtasks
+      SET title = @title,
+          completed = @completed,
+          position = @position,
+          updated_at = @updated_at
+      WHERE id = @id`
+  )
+  stmt.run({
+    id,
+    title: updated.title,
+    completed: updated.completed ? 1 : 0,
+    position: updated.position,
+    updated_at: updated.updated_at,
+  })
+  return updated
+}
+
+export function deleteSubtask(id: string): boolean {
+  const stmt = db.prepare(`DELETE FROM subtasks WHERE id = ?`)
+  const result = stmt.run(id)
+  return result.changes > 0
 }
