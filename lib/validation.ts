@@ -19,6 +19,7 @@ export const createTodoSchema = z.object({
   is_recurring: z.boolean().optional(),
   recurrence_pattern: recurrencePatternSchema.nullable().optional(),
   reminder_minutes: z.union([reminderMinutesSchema, z.null()]).optional(),
+  tag_ids: z.array(z.string().uuid()).optional(),
 }).superRefine((data, ctx) => {
   if (data.is_recurring) {
     if (!data.due_date) {
@@ -91,4 +92,25 @@ export const updateTodoSchema = z.object({
       })
     }
   }
+})
+
+const tagNameMax = 50
+export const tagNameSchema = z
+  .string()
+  .trim()
+  .min(1, { message: 'Tag name is required' })
+  .max(tagNameMax, { message: `Tag name must be ${tagNameMax} characters or less` })
+
+export const tagColorSchema = z
+  .string()
+  .regex(/^#[0-9A-Fa-f]{6}$/, { message: 'Color must be a hex code e.g. #3b82f6' })
+
+export const createTagSchema = z.object({
+  name: tagNameSchema,
+  color: tagColorSchema.optional(),
+})
+
+export const updateTagSchema = z.object({
+  name: tagNameSchema.optional(),
+  color: tagColorSchema.optional(),
 })

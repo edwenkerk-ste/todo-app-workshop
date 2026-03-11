@@ -19,6 +19,12 @@ export interface Todo {
   updated_at: string
 }
 
+export interface Tag {
+  id: string
+  name: string
+  color: string
+}
+
 const db = new Database('todos.db')
 
 // Ensure schema exists
@@ -69,6 +75,22 @@ try {
 } catch {
   // Column already exists.
 }
+
+// Tags (many-to-many with todos)
+db.exec(`
+CREATE TABLE IF NOT EXISTS tags (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  color TEXT NOT NULL DEFAULT '#6b7280'
+);
+CREATE TABLE IF NOT EXISTS todo_tags (
+  todo_id TEXT NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+  tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (todo_id, tag_id)
+);
+CREATE INDEX IF NOT EXISTS todo_tags_todo_id ON todo_tags(todo_id);
+CREATE INDEX IF NOT EXISTS todo_tags_tag_id ON todo_tags(tag_id);
+`)
 
 export function getAllTodos(): Todo[] {
   const stmt = db.prepare(`
@@ -243,4 +265,102 @@ export function claimReminderNotification(id: string, sentAtIso: string): Todo |
     return null
   }
   return getTodoById(id)
+}
+
+// --- Tags ---
+
+export function getAllTags(): Tag[] {
+  const stmt = db.prepare(`SELECT id, name, color FROM tags ORDER BY name ASC`)
+  const rows = stmt.all() as Array<Record<string, unknown>>
+  return rows.map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    color: String(row.color),
+  }))
+}
+
+export function getTagById(id: string): Tag | null {
+  const stmt = db.prepare(`SELECT id, name, color FROM tags WHERE id = ?`)
+  const row = stmt.get(id) as Record<string, unknown> | undefined
+  if (!row) return null
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    color: String(row.color),
+  }
+}
+
+export function getTagByName(name: string): Tag | null {
+  const stmt = db.prepare(`SELECT id, name, color FROM tags WHERE name = ?`)
+  const row = stmt.get(name.trim()) as Record<string, unknown> | undefined
+  if (!row) return null
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    color: String(row.color),
+  }
+}
+
+export function createTag(data: { name: string; color?: string }): Tag {
+  const id = uuidv4()
+  const name = data.name.trim()
+  const color = (data.color && /^#[0-9A-Fa-f]{6}$/.test(data.color)) ? data.color : '#6b7280'
+  const stmt = db.prepare(`INSERT INTO tags (id, name, color) VALUES (?, ?, ?)`)
+  stmt.run(id, name, color)
+  return { id, name, color }
+}
+
+export function updateTag(id: string, updates: { name?: string; color?: string }): Tag | null {
+  const existing = getTagById(id)
+  if (!existing) return null
+  const name = updates.name !== undefined ? updates.name.trim() : existing.name
+  const color =
+    updates.color !== undefined && /^#[0-9A-Fa-f]{6}$/.test(updates.color)
+      ? updates.color
+      : existing.color
+  const stmt = db.prepare(`UPDATE tags SET name = ?, color = ? WHERE id = ?`)
+  stmt.run(name, color, id)
+  return { id, name, color }
+}
+
+export function deleteTag(id: string): boolean {
+  const stmt = db.prepare(`DELETE FROM tags WHERE id = ?`)
+  const result = stmt.run(id)
+  return result.changes > 0
+}
+
+export function getTagsForTodo(todoId: string): Tag[] {
+  const stmt = db.prepare(`
+    SELECT t.id, t.name, t.color
+    FROM tags t
+    INNER JOIN todo_tags tt ON tt.tag_id = t.id
+    WHERE tt.todo_id = ?
+    ORDER BY t.name ASC
+  `)
+  const rows = stmt.all(todoId) as Array<Record<string, unknown>>
+  return rows.map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    color: String(row.color),
+  }))
+}
+
+export function setTodoTags(todoId: string, tagIds: string[]): void {
+  const del = db.prepare(`DELETE FROM todo_tags WHERE todo_id = ?`)
+  del.run(todoId)
+  if (tagIds.length === 0) return
+  const insert = db.prepare(`INSERT INTO todo_tags (todo_id, tag_id) VALUES (?, ?)`)
+  for (const tagId of tagIds) {
+    insert.run(todoId, tagId)
+  }
+}
+
+export function addTodoTag(todoId: string, tagId: string): void {
+  const stmt = db.prepare(`INSERT OR IGNORE INTO todo_tags (todo_id, tag_id) VALUES (?, ?)`)
+  stmt.run(todoId, tagId)
+}
+
+export function removeTodoTag(todoId: string, tagId: string): void {
+  const stmt = db.prepare(`DELETE FROM todo_tags WHERE todo_id = ? AND tag_id = ?`)
+  stmt.run(todoId, tagId)
 }

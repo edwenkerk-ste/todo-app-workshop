@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getTodoById, updateTodo, deleteTodo, createTodo } from '@/lib/db'
+import { getTodoById, updateTodo, deleteTodo, createTodo, getTagsForTodo } from '@/lib/db'
 import { updateTodoSchema } from '@/lib/validation'
 import { parseSingaporeLocalIso } from '@/lib/timezone'
 import { calculateNextDueDate } from '@/lib/recurrence'
@@ -13,7 +13,8 @@ export async function GET(
   if (!todo) {
     return NextResponse.json({ success: false, error: 'Todo not found' }, { status: 404 })
   }
-  return NextResponse.json({ success: true, data: todo })
+  const tags = getTagsForTodo(id)
+  return NextResponse.json({ success: true, data: { ...todo, tags } })
 }
 
 export async function PUT(
