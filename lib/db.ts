@@ -1,3 +1,4 @@
+import path from 'path'
 import Database from 'better-sqlite3'
 import { v4 as uuidv4 } from 'uuid'
 import { normalizePriority } from './priority'
@@ -72,7 +73,8 @@ export interface Authenticator {
   created_at: string
 }
 
-const db = new Database('todos.db')
+const dbPath = path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd(), 'todos.db')
+const db = new Database(dbPath)
 
 // Enable foreign key enforcement for CASCADE delete
 db.pragma('foreign_keys = ON')
