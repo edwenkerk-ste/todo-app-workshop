@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { seedSession } from '../helpers'
 
 async function seedTodoWithDueDate(page: Page, title: string, dueDate: string) {
   await page.request.post('/api/todos', {
@@ -15,6 +16,10 @@ async function seedHoliday(page: Page, date: string, name: string) {
 }
 
 test.describe('Calendar View (Feature 10)', () => {
+  test.beforeEach(async ({ page }) => {
+    await seedSession(page)
+  })
+
   test('calendar page loads and shows current month', async ({ page }) => {
     await page.goto('/calendar')
     await expect(page.locator('h1')).toContainText('Calendar')

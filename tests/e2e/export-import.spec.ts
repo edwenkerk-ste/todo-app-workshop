@@ -1,20 +1,12 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import fs from 'fs'
+import { seedSession, clearAllTodos } from '../helpers'
 
 const TODO_TITLE = 'E2E Export Import Test Todo'
 
-async function clearAllTodos(page: Page) {
-  const res = await page.request.get('/api/todos')
-  const body = await res.json()
-  if (body?.success && Array.isArray(body.data)) {
-    for (const todo of body.data) {
-      await page.request.delete(`/api/todos/${todo.id}`)
-    }
-  }
-}
-
 test.describe('Export & Import', () => {
   test.beforeEach(async ({ page }) => {
+    await seedSession(page)
     await page.goto('/')
     await clearAllTodos(page)
   })
