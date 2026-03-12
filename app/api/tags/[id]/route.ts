@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
 import { getTagById, updateTag, deleteTag, getTagByName } from '@/lib/db'
 import { updateTagSchema } from '@/lib/validation'
+import { getSession } from '@/lib/auth'
 
 export async function GET(
   _request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const { id } = await context.params
   const tag = getTagById(id)
   if (!tag) {
@@ -18,6 +21,8 @@ export async function PUT(
   request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const { id } = await context.params
   const existing = getTagById(id)
   if (!existing) {
@@ -51,6 +56,8 @@ export async function DELETE(
   _request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const { id } = await context.params
   const success = deleteTag(id)
   if (!success) {

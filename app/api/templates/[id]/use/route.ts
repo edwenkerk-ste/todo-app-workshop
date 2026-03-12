@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
 import { getTemplateById, createTodo, createSubtask } from '@/lib/db'
+import { getSession } from '@/lib/auth'
 
 export async function POST(
   _request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const { id } = await context.params
   const template = getTemplateById(id)
   if (!template) {
@@ -25,6 +28,7 @@ export async function POST(
     is_recurring: template.is_recurring,
     recurrence_pattern: template.recurrence_pattern,
     reminder_minutes: template.reminder_minutes,
+    user_id: session.userId,
   })
 
   if (template.subtasks_json) {

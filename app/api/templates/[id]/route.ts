@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
 import { getTemplateById, updateTemplate, deleteTemplate } from '@/lib/db'
 import type { Priority, RecurrencePattern } from '@/lib/db'
+import { getSession } from '@/lib/auth'
 
 export async function GET(
   _request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const { id } = await context.params
   const template = getTemplateById(id)
   if (!template) {
@@ -18,6 +21,8 @@ export async function PUT(
   request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const { id } = await context.params
   const existing = getTemplateById(id)
   if (!existing) {
@@ -102,6 +107,8 @@ export async function DELETE(
   _request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const { id } = await context.params
   const success = deleteTemplate(id)
   if (!success) {

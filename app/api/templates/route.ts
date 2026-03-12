@@ -1,13 +1,20 @@
 import { NextResponse } from 'next/server'
 import { getAllTemplates, createTemplate } from '@/lib/db'
 import type { Priority, RecurrencePattern } from '@/lib/db'
+import { getSession } from '@/lib/auth'
 
 export async function GET() {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+
   const templates = getAllTemplates()
   return NextResponse.json({ success: true, data: templates })
 }
 
 export async function POST(request: Request) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+
   const body = await request.json().catch(() => ({}))
 
   const name = typeof body.name === 'string' ? body.name.trim() : ''
