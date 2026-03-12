@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const { rpID } = getRpConfig()
+  const { rpID } = getRpConfig(request)
 
   const options = await generateAuthenticationOptions({
     rpID,

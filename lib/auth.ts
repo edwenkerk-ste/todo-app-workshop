@@ -60,11 +60,23 @@ export async function deleteSession(): Promise<void> {
   })
 }
 
-/** WebAuthn Relying Party config — read from env or use dev defaults */
-export function getRpConfig() {
+/** WebAuthn Relying Party config — read from env or derive from request (e.g. production domain) */
+export function getRpConfig(request?: Request) {
+  const originFromRequest = request ? getOriginFromRequest(request) : null
+  const origin = process.env.RP_ORIGIN ?? originFromRequest ?? 'http://localhost:3000'
+  const rpID = process.env.RP_ID ?? (originFromRequest ? new URL(originFromRequest).hostname : 'localhost')
   return {
     rpName: process.env.RP_NAME ?? 'Todo App',
-    rpID: process.env.RP_ID ?? 'localhost',
-    origin: process.env.RP_ORIGIN ?? 'http://localhost:3000',
+    rpID,
+    origin,
   }
+}
+
+function getOriginFromRequest(request: Request): string | null {
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host')
+  let proto = request.headers.get('x-forwarded-proto')
+  if (!host) return null
+  if (!proto && request.url) proto = new URL(request.url).protocol.replace(':', '')
+  const protocol = proto === 'https' ? 'https' : 'http'
+  return `${protocol}://${host}`
 }

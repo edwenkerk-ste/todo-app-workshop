@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'No challenge found. Please restart login.' }, { status: 400 })
   }
 
-  const { rpID, origin } = getRpConfig()
+  const { rpID, origin } = getRpConfig(request)
 
   // Find the authenticator that was used
   const credentialIdFromResponse = response.id

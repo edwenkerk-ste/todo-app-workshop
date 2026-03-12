@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'No challenge found. Please restart registration.' }, { status: 400 })
   }
 
-  const { rpID, origin } = getRpConfig()
+  const { rpID, origin } = getRpConfig(request)
 
   try {
     const verification = await verifyRegistrationResponse({

@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     user = createUser(username)
   }
 
-  const { rpName, rpID } = getRpConfig()
+  const { rpName, rpID } = getRpConfig(request)
   const existingAuths = getAuthenticatorsByUserId(user.id)
 
   const options = await generateRegistrationOptions({
