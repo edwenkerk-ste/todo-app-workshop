@@ -207,6 +207,7 @@ When authoring or reviewing a PRP, ensure:
 | [.github/copilot-instructions.md](../.github/copilot-instructions.md) | Repo-wide AI/dev patterns |
 | [USER_GUIDE.md](../USER_GUIDE.md) | End-user documentation |
 | [README.md](../README.md) | Setup and install |
+| [plan/GAP-TO-SCORE-HIGH.md](GAP-TO-SCORE-HIGH.md) | **Gap plan to reach 180–200** (E2E, unit, deployment, quality) |
 
 ---
 
