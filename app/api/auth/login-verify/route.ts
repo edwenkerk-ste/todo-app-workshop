@@ -9,14 +9,38 @@ import {
   updateAuthenticatorCounter,
 } from '@/lib/db'
 import { createSession, getRpConfig } from '@/lib/auth'
+import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/ratelimit'
 
 export async function POST(request: Request) {
+  // Rate limiting
+  const ip = getClientIp(request)
+  const { success: ipLimitOk } = checkRateLimit(ip, RATE_LIMITS.auth.maxRequests, RATE_LIMITS.auth.windowMs)
+  if (!ipLimitOk) {
+    return NextResponse.json(
+      { success: false, error: 'Too many login attempts. Please try again later.' },
+      { status: 429 }
+    )
+  }
+
   const body = await request.json().catch(() => ({}))
   const username = (body.username ?? '').trim()
   const response = body.response
 
   if (!username || !response) {
     return NextResponse.json({ success: false, error: 'Missing username or response' }, { status: 400 })
+  }
+
+  // Additional rate limit per username to prevent user enumeration
+  const { success: usernameLimitOk } = checkRateLimit(
+    `login-username-${username}`,
+    RATE_LIMITS.authPerUsername.maxRequests,
+    RATE_LIMITS.authPerUsername.windowMs
+  )
+  if (!usernameLimitOk) {
+    return NextResponse.json(
+      { success: false, error: 'Too many login attempts for this account. Please try again later.' },
+      { status: 429 }
+    )
   }
 
   const user = getUserByUsername(username)

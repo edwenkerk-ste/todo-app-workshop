@@ -4,6 +4,7 @@ import { updateTodoSchema } from '@/lib/validation'
 import { parseSingaporeLocalIso } from '@/lib/timezone'
 import { calculateNextDueDate } from '@/lib/recurrence'
 import { getSession } from '@/lib/auth'
+import { checkRateLimit, RATE_LIMITS } from '@/lib/ratelimit'
 
 export async function GET(
   _request: Request,
@@ -27,6 +28,15 @@ export async function PUT(
 ) {
   const session = await getSession()
   if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+
+  // Rate limiting per user
+  const { success: limitOk } = checkRateLimit(`todo-update-${session.userId}`, RATE_LIMITS.todos.maxRequests, RATE_LIMITS.todos.windowMs)
+  if (!limitOk) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests. Please try again later.' },
+      { status: 429 }
+    )
+  }
 
   const { id } = await context.params
   const existing = getTodoById(id)
@@ -106,6 +116,15 @@ export async function DELETE(
 ) {
   const session = await getSession()
   if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+
+  // Rate limiting per user
+  const { success: limitOk } = checkRateLimit(`todo-delete-${session.userId}`, RATE_LIMITS.todos.maxRequests, RATE_LIMITS.todos.windowMs)
+  if (!limitOk) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests. Please try again later.' },
+      { status: 429 }
+    )
+  }
 
   const { id } = await context.params
   const success = deleteTodo(id)

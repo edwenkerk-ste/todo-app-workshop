@@ -1,6 +1,9 @@
 node_modules
 .next
 todos.db
+.env
+.env.local
+.env.*.local
 
 # Test results & reports
 test-results

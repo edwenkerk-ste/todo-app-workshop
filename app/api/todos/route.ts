@@ -3,6 +3,7 @@ import { getAllTodos, createTodo, getTagsForTodo, setTodoTags, getTagById } from
 import { createTodoSchema } from '@/lib/validation'
 import { parseSingaporeLocalIso } from '@/lib/timezone'
 import { getSession } from '@/lib/auth'
+import { checkRateLimit, RATE_LIMITS } from '@/lib/ratelimit'
 
 export async function GET() {
   const session = await getSession()
@@ -19,6 +20,15 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getSession()
   if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+
+  // Rate limiting per user
+  const { success: limitOk } = checkRateLimit(`todo-create-${session.userId}`, RATE_LIMITS.todos.maxRequests, RATE_LIMITS.todos.windowMs)
+  if (!limitOk) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests. Please try again later.' },
+      { status: 429 }
+    )
+  }
 
   const body = await request.json().catch(() => ({}))
   const parseResult = createTodoSchema.safeParse(body)

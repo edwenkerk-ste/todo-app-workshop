@@ -5,7 +5,13 @@ import { jwtVerify } from 'jose'
 const SESSION_COOKIE = 'session'
 
 function getSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET ?? 'dev-secret-change-in-production'
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required. Generate with: openssl rand -base64 32')
+  }
+  if (secret === 'dev-secret-change-in-production') {
+    throw new Error('JWT_SECRET must be changed from default value in production')
+  }
   return new TextEncoder().encode(secret)
 }
 

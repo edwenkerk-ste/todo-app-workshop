@@ -2,8 +2,19 @@ import { NextResponse } from 'next/server'
 import { generateAuthenticationOptions } from '@simplewebauthn/server'
 import { getUserByUsername, getAuthenticatorsByUserId, setChallenge } from '@/lib/db'
 import { getRpConfig } from '@/lib/auth'
+import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/ratelimit'
 
 export async function POST(request: Request) {
+  // Rate limiting
+  const ip = getClientIp(request)
+  const { success: ipLimitOk } = checkRateLimit(ip, RATE_LIMITS.auth.maxRequests, RATE_LIMITS.auth.windowMs)
+  if (!ipLimitOk) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests. Please try again later.' },
+      { status: 429 }
+    )
+  }
+
   const body = await request.json().catch(() => ({}))
   const username = (body.username ?? '').trim()
   if (!username) {
