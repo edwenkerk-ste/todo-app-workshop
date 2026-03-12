@@ -118,6 +118,7 @@ export default function Page() {
   const [searchInput, setSearchInput] = useState('')
   const debouncedSearch = useDebounce(searchInput, 300)
   const [activeListTab, setActiveListTab] = useState<'overdue' | 'active' | 'completed'>('active')
+  const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editing, setEditing] = useState<Todo | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Todo | null>(null)
   const { isSupported, permission, enableNotifications } = useNotifications()
@@ -437,6 +438,7 @@ export default function Page() {
       setTodos((prev) => {
         return sortTodosByPriority(prev.map((t) => (t.id === optimisticTodo.id ? body.data : t)))
       })
+      setCreateModalOpen(false)
     } catch (err) {
       setError((err as Error).message)
       setTodos((prev) => prev.filter((t) => t.id !== optimisticTodo.id))
@@ -912,9 +914,9 @@ export default function Page() {
           {info ? <div style={{ color: '#16a34a' }}>{info}</div> : null}
         </div>
       ) : null}
-      <section className="card" style={{ marginBottom: '1rem' }}>
+      <section className="card" style={{ marginBottom: '1rem' }} aria-label="Search and filter">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
-          <div className="search-bar" style={{ flex: '1 1 200px', maxWidth: 360 }}>
+          <div className="search-bar" style={{ flex: '1 1 200px', minWidth: 0 }}>
             <span className="search-bar__icon" aria-hidden>
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" />
@@ -940,6 +942,18 @@ export default function Page() {
               </button>
             ) : null}
           </div>
+          <select
+            className="select"
+            value={selectedPriority}
+            onChange={(e) => setSelectedPriority(e.target.value as Priority | 'all')}
+            aria-label="Filter by priority"
+            style={{ width: 'auto', minWidth: 140 }}
+          >
+            <option value="all">All priorities</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
           {hasActiveFilters ? (
             <button type="button" className="small-btn" onClick={clearAllFilters}>
               Clear filters
@@ -955,156 +969,38 @@ export default function Page() {
         )}
       </section>
 
-      <section className="card">
-        <h2 style={{ marginTop: 0 }}>Create Todo</h2>
-        <div style={{ display: 'grid', gap: '0.8rem' }}>
+      <section className="list-section" aria-label="Todo list actions">
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={() => { resetForm(); setCreateModalOpen(true); }}
+          >
+            New todo
+          </button>
+          <button className="button" onClick={handleExport} disabled={loading}>
+            Export
+          </button>
+          <button className="button" onClick={openImportDialog} disabled={loading}>
+            Import
+          </button>
+          <button type="button" className="small-btn" onClick={() => setManageTagsOpen(true)}>
+            Manage Tags
+          </button>
+          <button type="button" className="small-btn" onClick={() => setTemplatesModalOpen(true)}>
+            Templates
+          </button>
           <input
-            className="input"
-            placeholder="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) handleImportFile(file)
+              e.target.value = ''
+            }}
           />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-            <input
-              className="input"
-              type="datetime-local"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              placeholder="Due date"
-            />
-            <select className="select" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          {tags.length > 0 ? (
-            <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
-              <legend style={{ marginBottom: 4 }}>Tags</legend>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                {tags.map((tag) => (
-                  <label key={tag.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedTagIds.has(tag.id)}
-                      onChange={(e) => {
-                        setSelectedTagIds((prev) => {
-                          const next = new Set(prev)
-                          if (e.target.checked) next.add(tag.id)
-                          else next.delete(tag.id)
-                          return next
-                        })
-                      }}
-                    />
-                    <span
-                      className="badge"
-                      style={{ backgroundColor: tag.color, color: '#fff' }}
-                    >
-                      {tag.name}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          ) : null}
-          <select
-            className="select"
-            value={reminderMinutes === null ? '' : String(reminderMinutes)}
-            onChange={(e) => setReminderMinutes(e.target.value ? Number(e.target.value) : null)}
-            disabled={!dueDate}
-            aria-label="Reminder"
-          >
-            <option value="">No reminder</option>
-            {REMINDER_MINUTES_OPTIONS.map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {formatReminderLabel(minutes)}
-              </option>
-            ))}
-          </select>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button className="button button--primary" onClick={handleCreate} disabled={loading}>
-              {loading ? 'Saving…' : 'Add todo'}
-            </button>
-            {title.trim() && (
-              <button
-                type="button"
-                className="small-btn"
-                onClick={() => setSaveTemplateModalOpen(true)}
-              >
-                Save as Template
-              </button>
-            )}
-            <button type="button" className="small-btn" onClick={() => setManageTagsOpen(true)}>
-              Manage Tags
-            </button>
-            <button type="button" className="small-btn" onClick={() => setTemplatesModalOpen(true)}>
-              Templates
-            </button>
-          </div>
-          {templates.length > 0 && (
-            <div>
-              <label>
-                <div style={{ marginBottom: 4 }}>Use Template</div>
-                <select
-                  className="select"
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value) void handleUseTemplate(e.target.value)
-                  }}
-                >
-                  <option value="">Select a template...</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}{t.category ? ` (${t.category})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="list-section" aria-label="Todo filters">
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '0.75rem',
-          }}
-        >
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="button" onClick={handleExport} disabled={loading}>
-              Export
-            </button>
-            <button className="button" onClick={openImportDialog} disabled={loading}>
-              Import
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) handleImportFile(file)
-                e.target.value = ''
-              }}
-            />
-          </div>
-          <select
-            className="select"
-            value={selectedPriority}
-            onChange={(e) => setSelectedPriority(e.target.value as Priority | 'all')}
-            aria-label="Filter by priority"
-            style={{ maxWidth: 200 }}
-          >
-            <option value="all">All priorities</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
         </div>
       </section>
 
@@ -1191,6 +1087,139 @@ export default function Page() {
           </div>
         </section>
       )}
+
+      {createModalOpen ? (
+        <div
+          className="modal-backdrop"
+          onClick={() => { setCreateModalOpen(false); resetForm(); setError(null); }}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div className="modal-header">
+              <h3 className="modal-title">New todo</h3>
+              <button
+                className="close-button"
+                onClick={() => { setCreateModalOpen(false); resetForm(); setError(null); }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ display: 'grid', gap: '0.8rem' }}>
+              <label>
+                <div style={{ marginBottom: 4 }}>Title</div>
+                <input
+                  className="input"
+                  placeholder="What needs to be done?"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <label>
+                  <div style={{ marginBottom: 4 }}>Due date</div>
+                  <input
+                    className="input"
+                    type="datetime-local"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                  />
+                </label>
+                <label>
+                  <div style={{ marginBottom: 4 }}>Priority</div>
+                  <select className="select" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </label>
+              </div>
+              {tags.length > 0 ? (
+                <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+                  <legend style={{ marginBottom: 4 }}>Tags</legend>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {tags.map((tag) => (
+                      <label key={tag.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedTagIds.has(tag.id)}
+                          onChange={(e) => {
+                            setSelectedTagIds((prev) => {
+                              const next = new Set(prev)
+                              if (e.target.checked) next.add(tag.id)
+                              else next.delete(tag.id)
+                              return next
+                            })
+                          }}
+                        />
+                        <span className="badge" style={{ backgroundColor: tag.color, color: '#fff' }}>
+                          {tag.name}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : null}
+              <label>
+                <div style={{ marginBottom: 4 }}>Reminder</div>
+                <select
+                  className="select"
+                  value={reminderMinutes === null ? '' : String(reminderMinutes)}
+                  onChange={(e) => setReminderMinutes(e.target.value ? Number(e.target.value) : null)}
+                  disabled={!dueDate}
+                  aria-label="Reminder"
+                >
+                  <option value="">No reminder</option>
+                  {REMINDER_MINUTES_OPTIONS.map((minutes) => (
+                    <option key={minutes} value={minutes}>
+                      {formatReminderLabel(minutes)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {templates.length > 0 && (
+                <label>
+                  <div style={{ marginBottom: 4 }}>Use template</div>
+                  <select
+                    className="select"
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) void handleUseTemplate(e.target.value)
+                    }}
+                  >
+                    <option value="">Select a template...</option>
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}{t.category ? ` (${t.category})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                <button className="button button--primary" onClick={handleCreate} disabled={loading}>
+                  {loading ? 'Saving…' : 'Add todo'}
+                </button>
+                {title.trim() && (
+                  <button
+                    type="button"
+                    className="small-btn"
+                    onClick={() => setSaveTemplateModalOpen(true)}
+                  >
+                    Save as Template
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="small-btn"
+                  onClick={() => { setCreateModalOpen(false); resetForm(); setError(null); }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {editing ? (
         <div className="modal-backdrop" onClick={closeModal}>
