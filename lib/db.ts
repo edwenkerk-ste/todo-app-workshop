@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import Database from 'better-sqlite3'
 import { v4 as uuidv4 } from 'uuid'
@@ -74,6 +75,10 @@ export interface Authenticator {
 }
 
 const dbPath = path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd(), 'todos.db')
+const dbDir = path.dirname(dbPath)
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true })
+}
 const db = new Database(dbPath)
 
 // Enable foreign key enforcement for CASCADE delete
