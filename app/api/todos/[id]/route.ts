@@ -3,11 +3,15 @@ import { getTodoById, updateTodo, deleteTodo, createTodo, getTagsForTodo } from 
 import { updateTodoSchema } from '@/lib/validation'
 import { parseSingaporeLocalIso } from '@/lib/timezone'
 import { calculateNextDueDate } from '@/lib/recurrence'
+import { getSession } from '@/lib/auth'
 
 export async function GET(
   _request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+
   const { id } = await context.params
   const todo = getTodoById(id)
   if (!todo) {
@@ -21,6 +25,9 @@ export async function PUT(
   request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+
   const { id } = await context.params
   const existing = getTodoById(id)
   if (!existing) {
@@ -82,6 +89,7 @@ export async function PUT(
       recurrence_pattern: existing.recurrence_pattern,
       reminder_minutes: existing.reminder_minutes,
       last_notification_sent: null,
+      user_id: session.userId,
     })
   }
 
@@ -96,6 +104,9 @@ export async function DELETE(
   _request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+
   const { id } = await context.params
   const success = deleteTodo(id)
   if (!success) {

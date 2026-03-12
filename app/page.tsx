@@ -118,6 +118,9 @@ export default function Page() {
   const [editingTagColor, setEditingTagColor] = useState('')
   const [tagError, setTagError] = useState<string | null>(null)
 
+  // Auth state
+  const [sessionUsername, setSessionUsername] = useState<string | null>(null)
+
   // Subtask state
   const [subtasksMap, setSubtasksMap] = useState<Record<string, Subtask[]>>({})
   const [expandedTodoId, setExpandedTodoId] = useState<string | null>(null)
@@ -131,6 +134,27 @@ export default function Page() {
   const [templateDescription, setTemplateDescription] = useState('')
   const [templateCategory, setTemplateCategory] = useState('')
   const [templateCategoryFilter, setTemplateCategoryFilter] = useState<string>('all')
+
+  const fetchMe = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/me')
+      const body = await res.json()
+      if (res.ok && body.success) {
+        setSessionUsername(body.data.username)
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch {
+      // ignore
+    }
+    window.location.href = '/login'
+  }
 
   const fetchTodos = async () => {
     setLoading(true)
@@ -161,6 +185,7 @@ export default function Page() {
 
   useEffect(() => {
     fetchTodos()
+    fetchMe()
   }, [])
 
   useEffect(() => {
@@ -827,13 +852,27 @@ export default function Page() {
       <header style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h1 style={{ margin: 0, fontSize: '2rem' }}>Todo App</h1>
-          <a
-            href="/calendar"
-            className="button"
-            style={{ textDecoration: 'none', background: 'rgba(139,92,246,0.85)', borderColor: 'rgba(139,92,246,0.7)', fontSize: '0.9rem', padding: '0.5rem 1rem' }}
-          >
-            📅 Calendar
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {sessionUsername && (
+              <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+                Hi, {sessionUsername}
+              </span>
+            )}
+            <a
+              href="/calendar"
+              className="button"
+              style={{ textDecoration: 'none', background: 'rgba(139,92,246,0.85)', borderColor: 'rgba(139,92,246,0.7)', fontSize: '0.9rem', padding: '0.5rem 1rem' }}
+            >
+              📅 Calendar
+            </a>
+            <button
+              className="small-btn"
+              onClick={handleLogout}
+              style={{ color: '#f87171' }}
+            >
+              Logout
+            </button>
+          </div>
         </div>
         <p style={{ margin: '0.25rem 0 0', color: 'var(--muted)' }}>
           Manage your todos (Singapore timezone). Create, edit, complete, and delete.

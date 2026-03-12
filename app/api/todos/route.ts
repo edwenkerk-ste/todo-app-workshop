@@ -2,9 +2,13 @@ import { NextResponse } from 'next/server'
 import { getAllTodos, createTodo, getTagsForTodo, setTodoTags, getTagById } from '@/lib/db'
 import { createTodoSchema } from '@/lib/validation'
 import { parseSingaporeLocalIso } from '@/lib/timezone'
+import { getSession } from '@/lib/auth'
 
 export async function GET() {
-  const todos = getAllTodos()
+  const session = await getSession()
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+
+  const todos = getAllTodos(session.userId)
   const todosWithTags = todos.map((todo) => ({
     ...todo,
     tags: getTagsForTodo(todo.id),
@@ -13,6 +17,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+
   const body = await request.json().catch(() => ({}))
   const parseResult = createTodoSchema.safeParse(body)
   if (!parseResult.success) {
@@ -30,6 +37,7 @@ export async function POST(request: Request) {
     recurrence_pattern: is_recurring ? (recurrence_pattern ?? null) : null,
     reminder_minutes: dueDateIso ? (reminder_minutes ?? null) : null,
     last_notification_sent: null,
+    user_id: session.userId,
   })
   if (tag_ids?.length) {
     const validIds = tag_ids.filter((id) => getTagById(id))

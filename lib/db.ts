@@ -56,6 +56,22 @@ export interface Template {
   updated_at: string
 }
 
+export interface User {
+  id: string
+  username: string
+  created_at: string
+}
+
+export interface Authenticator {
+  id: string
+  user_id: string
+  credential_id: string
+  credential_public_key: string
+  counter: number
+  transports: string | null
+  created_at: string
+}
+
 const db = new Database('todos.db')
 
 // Enable foreign key enforcement for CASCADE delete
@@ -195,9 +211,49 @@ CREATE TABLE IF NOT EXISTS templates (
 );
 `)
 
-export function getAllTodos(): Todo[] {
-  const stmt = db.prepare(`
+// Users and authenticators tables for WebAuthn
+db.exec(`
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS authenticators (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  credential_id TEXT NOT NULL UNIQUE,
+  credential_public_key TEXT NOT NULL,
+  counter INTEGER NOT NULL DEFAULT 0,
+  transports TEXT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS authenticators_user_id ON authenticators(user_id);
+CREATE INDEX IF NOT EXISTS authenticators_credential_id ON authenticators(credential_id);
+`)
+
+// Migration: add user_id to todos for multi-user support
+try {
+  db.exec(`ALTER TABLE todos ADD COLUMN user_id TEXT NULL;`)
+} catch {
+  // Column already exists
+}
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS todos_user_id ON todos(user_id);`)
+} catch {
+  // Index already exists
+}
+
+// Migration: add user_id to templates for multi-user support
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN user_id TEXT NULL;`)
+} catch {
+  // Column already exists
+}
+
+export function getAllTodos(userId?: string): Todo[] {
+  const sql = `
     SELECT * FROM todos
+    ${userId ? 'WHERE user_id = ?' : ''}
     ORDER BY
       completed ASC,
       CASE priority
@@ -208,8 +264,9 @@ export function getAllTodos(): Todo[] {
       END DESC,
       due_date ASC,
       created_at ASC
-  `)
-  const rows = stmt.all() as Array<Record<string, unknown>>
+  `
+  const stmt = db.prepare(sql)
+  const rows = (userId ? stmt.all(userId) : stmt.all()) as Array<Record<string, unknown>>
   return rows.map((row) => ({
     id: String(row.id),
     title: String(row.title),
@@ -260,6 +317,7 @@ export function createTodo(data: {
   recurrence_pattern?: RecurrencePattern | null
   reminder_minutes?: number | null
   last_notification_sent?: string | null
+  user_id?: string | null
 }): Todo {
   const now = new Date().toISOString()
   const isRecurring = Boolean(data.is_recurring)
@@ -278,8 +336,8 @@ export function createTodo(data: {
     updated_at: now,
   }
   const stmt = db.prepare(
-    `INSERT INTO todos (id, title, due_date, priority, is_recurring, recurrence_pattern, reminder_minutes, last_notification_sent, completed, created_at, updated_at)
-      VALUES (@id, @title, @due_date, @priority, @is_recurring, @recurrence_pattern, @reminder_minutes, @last_notification_sent, @completed, @created_at, @updated_at)`
+    `INSERT INTO todos (id, title, due_date, priority, is_recurring, recurrence_pattern, reminder_minutes, last_notification_sent, completed, created_at, updated_at, user_id)
+      VALUES (@id, @title, @due_date, @priority, @is_recurring, @recurrence_pattern, @reminder_minutes, @last_notification_sent, @completed, @created_at, @updated_at, @user_id)`
   )
   stmt.run({
     id: todo.id,
@@ -293,6 +351,7 @@ export function createTodo(data: {
     completed: 0,
     created_at: todo.created_at,
     updated_at: todo.updated_at,
+    user_id: data.user_id ?? null,
   })
   return todo
 }
@@ -876,4 +935,114 @@ export function seedHolidays(holidays: Array<{ date: string; name: string; obser
   })
   insertMany(holidays)
   return count
+}
+
+// --- Users ---
+
+export function getUserById(id: string): User | null {
+  const stmt = db.prepare(`SELECT * FROM users WHERE id = ?`)
+  const row = stmt.get(id) as Record<string, unknown> | undefined
+  if (!row) return null
+  return { id: String(row.id), username: String(row.username), created_at: String(row.created_at) }
+}
+
+export function getUserByUsername(username: string): User | null {
+  const stmt = db.prepare(`SELECT * FROM users WHERE username = ?`)
+  const row = stmt.get(username) as Record<string, unknown> | undefined
+  if (!row) return null
+  return { id: String(row.id), username: String(row.username), created_at: String(row.created_at) }
+}
+
+export function createUser(username: string): User {
+  const id = uuidv4()
+  const now = new Date().toISOString()
+  db.prepare(`INSERT INTO users (id, username, created_at) VALUES (?, ?, ?)`).run(id, username, now)
+  return { id, username, created_at: now }
+}
+
+// --- Authenticators ---
+
+export function getAuthenticatorsByUserId(userId: string): Authenticator[] {
+  const stmt = db.prepare(`SELECT * FROM authenticators WHERE user_id = ?`)
+  const rows = stmt.all(userId) as Array<Record<string, unknown>>
+  return rows.map((row) => ({
+    id: String(row.id),
+    user_id: String(row.user_id),
+    credential_id: String(row.credential_id),
+    credential_public_key: String(row.credential_public_key),
+    counter: Number(row.counter ?? 0),
+    transports: row.transports === null || row.transports === undefined ? null : String(row.transports),
+    created_at: String(row.created_at),
+  }))
+}
+
+export function getAuthenticatorByCredentialId(credentialId: string): (Authenticator & { username: string }) | null {
+  const stmt = db.prepare(`
+    SELECT a.*, u.username FROM authenticators a
+    INNER JOIN users u ON u.id = a.user_id
+    WHERE a.credential_id = ?
+  `)
+  const row = stmt.get(credentialId) as Record<string, unknown> | undefined
+  if (!row) return null
+  return {
+    id: String(row.id),
+    user_id: String(row.user_id),
+    credential_id: String(row.credential_id),
+    credential_public_key: String(row.credential_public_key),
+    counter: Number(row.counter ?? 0),
+    transports: row.transports === null || row.transports === undefined ? null : String(row.transports),
+    created_at: String(row.created_at),
+    username: String(row.username),
+  }
+}
+
+export function createAuthenticator(data: {
+  user_id: string
+  credential_id: string
+  credential_public_key: string
+  counter: number
+  transports: string | null
+}): Authenticator {
+  const id = uuidv4()
+  const now = new Date().toISOString()
+  db.prepare(
+    `INSERT INTO authenticators (id, user_id, credential_id, credential_public_key, counter, transports, created_at)
+     VALUES (@id, @user_id, @credential_id, @credential_public_key, @counter, @transports, @created_at)`
+  ).run({
+    id,
+    user_id: data.user_id,
+    credential_id: data.credential_id,
+    credential_public_key: data.credential_public_key,
+    counter: data.counter ?? 0,
+    transports: data.transports,
+    created_at: now,
+  })
+  return {
+    id,
+    user_id: data.user_id,
+    credential_id: data.credential_id,
+    credential_public_key: data.credential_public_key,
+    counter: data.counter ?? 0,
+    transports: data.transports,
+    created_at: now,
+  }
+}
+
+export function updateAuthenticatorCounter(credentialId: string, counter: number): void {
+  db.prepare(`UPDATE authenticators SET counter = ? WHERE credential_id = ?`).run(counter, credentialId)
+}
+
+// In-memory challenge store (keyed by username, short-lived)
+const challengeStore = new Map<string, string>()
+
+export function setChallenge(key: string, challenge: string): void {
+  challengeStore.set(key, challenge)
+}
+
+export function getChallenge(key: string): string | null {
+  return challengeStore.get(key) ?? null
+}
+
+export function deleteChallenge(key: string): void {
+  challengeStore.delete(key)
 }

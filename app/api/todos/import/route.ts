@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { importBackup } from '@/lib/db'
+import { getSession } from '@/lib/auth'
 
 const importSchema = z.object({
   version: z.number().int().positive(),
@@ -53,6 +54,9 @@ const importSchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+
   const body = await request.json().catch(() => null)
   if (!body) {
     return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })

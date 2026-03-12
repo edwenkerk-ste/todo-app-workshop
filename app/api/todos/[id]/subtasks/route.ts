@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getTodoById, getSubtasksByTodoId, createSubtask } from '@/lib/db'
+import { getSession } from '@/lib/auth'
 
 const createSubtaskSchema = z.object({
   title: z.string().trim().min(1, { message: 'Subtask title is required' }),
@@ -10,6 +11,8 @@ export async function GET(
   _request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const { id } = await context.params
   const todo = getTodoById(id)
   if (!todo) {
@@ -23,6 +26,8 @@ export async function POST(
   request: Request,
   context: { params: any }
 ) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   const { id } = await context.params
   const todo = getTodoById(id)
   if (!todo) {
