@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth'
 
 export async function GET(
   _request: Request,
-  context: { params: any }
+  context: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -19,7 +19,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  context: { params: any }
+  context: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -54,7 +54,7 @@ export async function PUT(
 
 export async function DELETE(
   _request: Request,
-  context: { params: any }
+  context: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })

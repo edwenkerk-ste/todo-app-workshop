@@ -3,7 +3,7 @@ import { getTodoById, getTagById, setTodoTags, addTodoTag, removeTodoTag } from 
 
 export async function POST(
   request: Request,
-  context: { params: any }
+  context: { params: Promise<{ id: string }> }
 ) {
   const { id: todoId } = await context.params
   const todo = getTodoById(todoId)
@@ -37,7 +37,7 @@ export async function POST(
 
 export async function DELETE(
   request: Request,
-  context: { params: any }
+  context: { params: Promise<{ id: string }> }
 ) {
   const { id: todoId } = await context.params
   const todo = getTodoById(todoId)

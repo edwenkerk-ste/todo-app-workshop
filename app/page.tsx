@@ -55,17 +55,6 @@ type Todo = {
   tags?: Tag[]
 }
 
-/** Form state for the create-todo form (title, due date, priority, etc.). */
-type CreateTodoFormState = {
-  title: string
-  dueDate: string
-  priority: Priority
-  isRecurring: boolean
-  recurrencePattern: RecurrencePattern
-  reminderMinutes: number | null
-  selectedTagIds: Set<string>
-}
-
 const priorityLabels: Record<Priority, string> = {
   high: 'High',
   medium: 'Medium',
@@ -199,6 +188,7 @@ export default function Page() {
   useEffect(() => {
     fetchTodos()
     fetchMe()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, [])
 
   useEffect(() => {
@@ -398,7 +388,15 @@ export default function Page() {
       return
     }
 
-    const payload: any = {
+    const payload: {
+      title: string
+      priority: Priority
+      is_recurring: boolean
+      recurrence_pattern: RecurrencePattern | null
+      reminder_minutes: number | null
+      due_date?: string
+      tag_ids?: string[]
+    } = {
       title: trimmed,
       priority,
       is_recurring: isRecurring,
@@ -500,15 +498,23 @@ export default function Page() {
       return
     }
 
-    const payload: any = {
+    const payload: {
+      title: string
+      priority: Priority
+      is_recurring: boolean
+      recurrence_pattern: RecurrencePattern | null
+      reminder_minutes: number | null
+      due_date: string | null
+      tag_ids?: string[]
+    } = {
       title: trimmed,
       priority,
       is_recurring: isRecurring,
       recurrence_pattern: isRecurring ? recurrencePattern : null,
       reminder_minutes: dueDate ? reminderMinutes : null,
+      due_date: dueDate ?? null,
     }
-    if (dueDate) payload.due_date = dueDate
-    else payload.due_date = null
+    if (selectedTagIds.size) payload.tag_ids = Array.from(selectedTagIds)
 
     const optimistic: Todo = {
       ...editing,

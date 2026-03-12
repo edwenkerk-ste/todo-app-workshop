@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth'
 
 export async function POST(
   _request: Request,
-  context: { params: any }
+  context: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })

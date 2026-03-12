@@ -3,7 +3,7 @@ import { claimReminderNotification, getAllTodos } from '@/lib/db'
 import { isReminderDue } from '@/lib/reminders'
 import { getSession } from '@/lib/auth'
 
-export async function GET(_request: Request) {
+export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
 

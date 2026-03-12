@@ -9,7 +9,7 @@ function getSecret(): Uint8Array {
   if (!secret) {
     throw new Error('JWT_SECRET environment variable is required. Generate with: openssl rand -base64 32')
   }
-  if (secret === 'dev-secret-change-in-production') {
+  if (secret === 'dev-secret-change-in-production' && process.env.NODE_ENV === 'production') {
     throw new Error('JWT_SECRET must be changed from default value in production')
   }
   return new TextEncoder().encode(secret)
