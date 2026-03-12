@@ -55,6 +55,17 @@ type Todo = {
   tags?: Tag[]
 }
 
+/** Form state for the create-todo form (title, due date, priority, etc.). */
+type CreateTodoFormState = {
+  title: string
+  dueDate: string
+  priority: Priority
+  isRecurring: boolean
+  recurrencePattern: RecurrencePattern
+  reminderMinutes: number | null
+  selectedTagIds: Set<string>
+}
+
 const priorityLabels: Record<Priority, string> = {
   high: 'High',
   medium: 'Medium',
@@ -106,6 +117,7 @@ export default function Page() {
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState('')
   const debouncedSearch = useDebounce(searchInput, 300)
+  const [activeListTab, setActiveListTab] = useState<'overdue' | 'active' | 'completed'>('active')
   const [editing, setEditing] = useState<Todo | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Todo | null>(null)
   const { isSupported, permission, enableNotifications } = useNotifications()
@@ -901,16 +913,33 @@ export default function Page() {
         </div>
       ) : null}
       <section className="card" style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-          <input
-            className="input"
-            type="search"
-            placeholder="Search by title or tag…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            aria-label="Search todos"
-            style={{ flex: '1 1 200px', maxWidth: 320 }}
-          />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+          <div className="search-bar" style={{ flex: '1 1 200px', maxWidth: 360 }}>
+            <span className="search-bar__icon" aria-hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </span>
+            <input
+              className="search-bar__input"
+              type="search"
+              placeholder="Search by title or tag…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              aria-label="Search todos"
+            />
+            {searchInput.trim() ? (
+              <button
+                type="button"
+                className="search-bar__clear"
+                onClick={() => setSearchInput('')}
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
           {hasActiveFilters ? (
             <button type="button" className="small-btn" onClick={clearAllFilters}>
               Clear filters
@@ -992,9 +1021,9 @@ export default function Page() {
               </option>
             ))}
           </select>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button className="button" onClick={handleCreate} disabled={loading}>
-              {loading ? 'Saving…' : 'Create Todo'}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button className="button button--primary" onClick={handleCreate} disabled={loading}>
+              {loading ? 'Saving…' : 'Add todo'}
             </button>
             {title.trim() && (
               <button
@@ -1088,43 +1117,79 @@ export default function Page() {
           </p>
         </section>
       ) : (
-        <>
-      <section className="list-section">
-        <div className="list-header">
-          <h2>Overdue</h2>
-          <span className="badge">{overdueTodos.length}</span>
-        </div>
-        {overdueTodos.length === 0 ? (
-          <p style={{ color: 'var(--muted)' }}>No overdue todos</p>
-        ) : (
-          overdueTodos.map(renderTodo)
-        )}
-      </section>
-
-      <section className="list-section">
-        <div className="list-header">
-          <h2>Active</h2>
-          <span className="badge">{activeTodos.length}</span>
-        </div>
-        {activeTodos.length === 0 ? (
-          <p style={{ color: 'var(--muted)' }}>No active todos</p>
-        ) : (
-          activeTodos.map(renderTodo)
-        )}
-      </section>
-
-      <section className="list-section">
-        <div className="list-header">
-          <h2>Completed</h2>
-          <span className="badge">{completedTodos.length}</span>
-        </div>
-        {completedTodos.length === 0 ? (
-          <p style={{ color: 'var(--muted)' }}>No completed todos</p>
-        ) : (
-          completedTodos.map(renderTodo)
-        )}
-      </section>
-        </>
+        <section className="list-section" aria-label="Todo list by status">
+          <div
+            className="tab-list"
+            role="tablist"
+            aria-label="Todo status"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeListTab === 'overdue'}
+              aria-controls="tabpanel-overdue"
+              id="tab-overdue"
+              onClick={() => setActiveListTab('overdue')}
+            >
+              Overdue ({overdueTodos.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeListTab === 'active'}
+              aria-controls="tabpanel-active"
+              id="tab-active"
+              onClick={() => setActiveListTab('active')}
+            >
+              Active ({activeTodos.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeListTab === 'completed'}
+              aria-controls="tabpanel-completed"
+              id="tab-completed"
+              onClick={() => setActiveListTab('completed')}
+            >
+              Completed ({completedTodos.length})
+            </button>
+          </div>
+          <div
+            id={`tabpanel-${activeListTab}`}
+            role="tabpanel"
+            className="tab-panel"
+            aria-labelledby={`tab-${activeListTab}`}
+            tabIndex={0}
+          >
+            {activeListTab === 'overdue' && (
+              <>
+                {overdueTodos.length === 0 ? (
+                  <p style={{ color: 'var(--muted)' }}>No overdue todos</p>
+                ) : (
+                  overdueTodos.map(renderTodo)
+                )}
+              </>
+            )}
+            {activeListTab === 'active' && (
+              <>
+                {activeTodos.length === 0 ? (
+                  <p style={{ color: 'var(--muted)' }}>No active todos</p>
+                ) : (
+                  activeTodos.map(renderTodo)
+                )}
+              </>
+            )}
+            {activeListTab === 'completed' && (
+              <>
+                {completedTodos.length === 0 ? (
+                  <p style={{ color: 'var(--muted)' }}>No completed todos</p>
+                ) : (
+                  completedTodos.map(renderTodo)
+                )}
+              </>
+            )}
+          </div>
+        </section>
       )}
 
       {editing ? (
